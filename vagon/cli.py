@@ -374,6 +374,56 @@ def cmd_backup_all(app: App, a) -> int:
     return 0
 
 
+def diff_backups(old, new) -> list[str]:
+    """Human-readable differences between two backups of the same module."""
+    lines = []
+    for k in sorted(set(old.dids) | set(new.dids)):
+        a_hex, b_hex = old.dids.get(k), new.dids.get(k)
+        if a_hex == b_hex:
+            continue
+        if a_hex is None or b_hex is None:
+            lines.append(f"{k}: {a_hex or '—'} → {b_hex or '—'}")
+            continue
+        a_b, b_b = bytes.fromhex(a_hex), bytes.fromhex(b_hex)
+        lines.append(f"{k}: {a_hex} → {b_hex}")
+        if len(a_b) == len(b_b):
+            for i, (x, y) in enumerate(zip(a_b, b_b)):
+                for bit in range(8):
+                    if (x ^ y) >> bit & 1:
+                        lines.append(f"    Byte {i} Bit {bit}: {(x >> bit) & 1} → {(y >> bit) & 1}")
+    return lines
+
+
+def cmd_diff(app: App, a) -> int:
+    from .vag.store import Store
+    if a.files and len(a.files) == 2:
+        pairs = [(Store.load_backup(a.files[0]), Store.load_backup(a.files[1]))]
+    elif not a.files:
+        pairs = []
+        by_mod: dict[str, list] = {}
+        for b in app.store.list_backups(module=a.module):
+            if a.any or b.data.get("reason") == "full backup":
+                by_mod.setdefault(b.module, []).append(b)
+        for mod, items in sorted(by_mod.items()):
+            if len(items) >= 2:
+                pairs.append((items[-2], items[-1]))
+    else:
+        raise SafetyError("нужно два файла копий или ни одного (тогда сравниваются две последние копии)")
+    shown = 0
+    for old, new in pairs:
+        lines = diff_backups(old, new)
+        if not lines:
+            continue
+        shown += 1
+        out(f"Блок {new.module}: {old.created} ({old.data.get('reason', '')}) → "
+            f"{new.created} ({new.data.get('reason', '')})")
+        for ln in lines:
+            out(f"  {ln}")
+    if not shown:
+        out("Различий нет.")
+    return 0
+
+
 def cmd_restore(app: App, a) -> int:
     from .vag.store import Store
     b = Store.load_backup(a.file)
@@ -621,6 +671,10 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("module", nargs="?")
     sp = add("backup-all", cmd_backup_all, "резервная копия кодирования всех блоков (только чтение)")
     sp.add_argument("-q", "--quiet", action="store_true")
+    sp = add("diff", cmd_diff, "сравнить копии: два файла или две последние полные копии (backup-all)")
+    sp.add_argument("files", nargs="*")
+    sp.add_argument("--module")
+    sp.add_argument("--any", action="store_true", help="сравнивать и автоматические копии перед записью")
     sp = add("restore", cmd_restore, "восстановить из резервной копии")
     sp.add_argument("file")
     sp.add_argument("--login", type=int)

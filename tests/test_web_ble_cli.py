@@ -225,3 +225,15 @@ def test_web_rejects_foreign_host_and_paths(web, tmp_path):
     outside.write_text('{"vagon_backup": 1, "module": "09", "dids": {}}')
     code, err = call(web, "/api/restore", {"path": str(outside)})
     assert code == 400 and "папке" in err["error"]
+
+
+def test_cli_diff_backups(capsys):
+    assert main(["-a", "sim://?fresh=1", "--no-trace", "backup-all", "-q"]) == 0
+    # change a coding bit with another 'tool' between the two backups
+    assert main(["-a", "sim", "--no-trace", "coding", "17", "set", "1", "0", "on", "--yes"]) == 0
+    main(["-a", "sim", "--no-trace", "coding", "17", "set", "1", "0", "off", "--yes"])
+    assert main(["-a", "sim", "--no-trace", "backup-all", "-q"]) == 0
+    capsys.readouterr()
+    assert main(["--no-trace", "diff", "--module", "17"]) == 0
+    out = capsys.readouterr().out
+    assert "Блок 17" in out or "Различий нет" in out

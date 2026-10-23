@@ -29,6 +29,7 @@
 | `labels add МОД --name … --did … --byte --bit --bits --values "a=0,b=1"` | добавить метку вручную |
 | `labels import-odx [МОД] --file ФАЙЛ.pdx` | импорт меток из ODX/PDX (нужен `pip install odxtools`) |
 | `backup-all` | копия идентификации и кодирования всех блоков (только чтение) |
+| `diff [A.json B.json] [--module МОД] [--any]` | что изменилось между двумя копиями (по умолчанию — две последние `backup-all`) |
 | `backups [МОД]` | резервные копии |
 | `restore ФАЙЛ` | восстановить из копии |
 | `journal` | журнал записей |

@@ -57,9 +57,11 @@ class Store:
     # ---------------------------------------------------------------- backups
     def save_backup(self, *, vin: str, module: str, ident: dict, coding: str | None,
                     dids: dict[str, str], reason: str) -> Backup:
+        now = time.time()
         data = {
             "vagon_backup": 1,
-            "created": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "created": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(now)),
+            "ts": now,
             "vin": vin,
             "module": module,
             "ident": ident,
@@ -68,7 +70,7 @@ class Store:
             "reason": reason,
         }
         folder = self._dir("backups", _safe(vin or "UNKNOWN_VIN"))
-        base = f"{_now()}_{module}_{_safe(reason)[:30]}"
+        base = f"{_now()}.{int(now * 1000) % 1000:03d}_{module}_{_safe(reason)[:30]}"
         path = os.path.join(folder, base + ".json")
         n = 1
         while os.path.exists(path):
@@ -102,7 +104,7 @@ class Store:
                 if module and data.get("module", "").upper() != module.upper():
                     continue
                 out.append(Backup(path, data))
-        out.sort(key=lambda b: (b.created, b.path))
+        out.sort(key=lambda b: (b.data.get("ts") or 0.0, b.created, b.path))
         return out
 
     @staticmethod

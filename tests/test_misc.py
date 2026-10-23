@@ -110,3 +110,11 @@ def test_data_dir_ios(monkeypatch, tmp_path):
     monkeypatch.setattr(paths, "is_ios", lambda: True)
     monkeypatch.setattr(os.path, "expanduser", lambda p: str(tmp_path) if p == "~" else p)
     assert paths.data_dir() == os.path.join(str(tmp_path), "Documents", "VagOn")
+
+
+def test_backups_ordered_within_same_second(tmp_path):
+    st = Store(str(tmp_path))
+    names = ["z first", "a second", "m third"]
+    for n in names:
+        st.save_backup(vin="V", module="09", ident={}, coding=None, dids={}, reason=n)
+    assert [b.data["reason"] for b in st.list_backups()] == names
