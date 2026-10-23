@@ -1,6 +1,6 @@
 # Команды
 
-Общие опции (перед командой): `-a/--adapter АДРЕС`, `--stmin МС`, `--no-trace`, `-v`.
+Общие опции (перед командой): `-a/--adapter АДРЕС`, `--stmin МС`, `--min-voltage В` (по умолчанию 11.5), `--no-trace`, `-v`.
 Адреса: `wifi`, `tcp://IP:ПОРТ`, `ble`, `ble://ИМЯ`, `serial:///dev/cu.X[?baud=38400]`, `sim`,
 `sim://?sfd=5F,17&stn=1`. По умолчанию — `$VAGON_ADAPTER` или `wifi` (`ble` в Pythonista).
 
@@ -23,7 +23,7 @@
 | `recipes [--category X] [--check]` | список рецептов; `--check` — состояние в машине |
 | `recipe show/check/on/off ID` | рецепт: описание / план / включить / выключить |
 | `learn start МОД` | обучение: снимок «до» |
-| `learn finish МОД --name ИМЯ --old A --new B` | сохранить метку канала |
+| `learn finish МОД --name ИМЯ --old A --new B [--byte --bit --bits]` | сохранить метку канала |
 | `learn finish МОД --recipe-name "Название" [--login N] [--session S]` | сохранить изменение как рецепт |
 | `labels list МОД` | известные каналы адаптации блока с текущими значениями |
 | `labels add МОД --name … --did … --byte --bit --bits --values "a=0,b=1"` | добавить метку вручную |
@@ -31,7 +31,7 @@
 | `backup-all` | копия идентификации и кодирования всех блоков (только чтение) |
 | `diff [A.json B.json] [--module МОД] [--any]` | что изменилось между двумя копиями (по умолчанию — две последние `backup-all`) |
 | `backups [МОД]` | резервные копии |
-| `restore ФАЙЛ` | восстановить из копии |
+| `restore ФАЙЛ [--coding-only] [--force]` | восстановить из копии (живые/только‑чтение DID пропускаются) |
 | `journal` | журнал записей |
 | `web [--host 127.0.0.1] [--port 8765] [--open]` | веб‑интерфейс |
 | `sim [--port 35000] [--sfd 5F]` | симулятор как Wi‑Fi адаптер на порту |
