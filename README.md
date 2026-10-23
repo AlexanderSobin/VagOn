@@ -87,6 +87,7 @@ vagon web --open                           # веб‑интерфейс в бр
 7. Что-то не так — `vagon recipe off <id>` или `vagon backups` → `vagon restore <файл>`.
 
 **Пошагово для 8Y** (CarPlay, анимация фонарей, Coming home, стрелки): [docs/GUIDE_8Y.md](docs/GUIDE_8Y.md).
+**Русификация** (язык MMI/приборки — что умеет VagOn, а что только прошивка): [docs/RUS.md](docs/RUS.md).
 
 Все команды: `vagon --help`, `vagon <команда> --help`. Справочник — [docs/COMMANDS.md](docs/COMMANDS.md).
 
