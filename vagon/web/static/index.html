@@ -101,6 +101,7 @@ details summary{cursor:pointer;color:var(--muted);margin:8px 0}
       <button class="primary grow" id="btnScan">Найти блоки</button>
       <button id="btnScanDtc">+ ошибки</button>
     </div>
+    <div class="row" style="margin-top:8px"><button class="grow" id="btnBackupAll">Копия кодирования всех блоков</button></div>
   </div>
   <div class="card small muted">
     Перед записью: зажигание ВКЛ, двигатель ВЫКЛ, напряжение > 12 В (лучше с зарядным).
@@ -289,6 +290,9 @@ async function scan(dtc){
   catch(e){ toast(e.message,true); }
 }
 $("#btnScan").onclick=()=>scan(false); $("#btnScanDtc").onclick=()=>scan(true);
+$("#btnBackupAll").onclick=async()=>{
+  try{ const r=await api("/api/backup_all",{}); toast(`Сохранено копий: ${r.saved.length}`); }catch(e){ toast(e.message,true); }
+};
 
 /* ---------------- modules ---------------- */
 function renderModules(mods){
@@ -331,11 +335,33 @@ function renderModule(){
       <div class="item" data-ch="${idx}"><div class="grow"><div>${esc(c.name)}</div><div class="small muted">${esc(c.did)}</div></div>
       <span class="badge">${esc(c.error?"ошибка":c.value)}</span></div>`).join("")+`</div>`;
   }
+  h+=`<h3>Идентификатор (DID) вручную</h3><div class="card">
+    <div class="row"><input id="rawDid" placeholder="DID, напр. 0600" class="grow" style="width:auto" autocapitalize="characters">
+      <button id="btnRawRead">Прочитать</button></div>
+    <div id="rawOut" class="diff small" style="margin-top:8px;display:none"></div>
+    <details><summary>Записать (для опытных)</summary>
+      <label>Новое значение (hex)</label><input id="rawHex" autocapitalize="characters">
+      <div class="row"><div class="grow"><label>Логин (необязательно)</label><input id="rawLogin" inputmode="numeric"></div>
+        <div class="grow"><label>Сессия</label><input id="rawSess" placeholder="0x03"></div></div>
+      <div class="row" style="margin-top:8px"><button class="danger grow" id="btnRawWrite">Записать…</button></div>
+    </details></div>`;
   h+=`<div class="row"><button id="btnModDtc" class="grow">Ошибки этого блока</button></div>`;
   $("#modDetail").innerHTML=h;
   if(m.coding) renderBits();
   $$("#modDetail [data-ch]").forEach(el=>el.onclick=()=>editChannel(m.channels[+el.dataset.ch]));
   const bd=$("#btnModDtc"); if(bd) bd.onclick=async()=>{ go("more"); showMore("dtc"); await readDtc([m.address]); };
+  $("#btnRawRead").onclick=async()=>{
+    try{ const r=await api(`/api/module/${m.address}/did_read`,{did:"0x"+$("#rawDid").value.trim().replace(/^0x/i,"")});
+      $("#rawOut").style.display="block"; $("#rawOut").textContent=`${r.did} = ${r.hex}  (${r.length} байт)  '${r.text}'`; $("#rawHex").value=r.hex;
+    }catch(e){ toast(e.message,true); }
+  };
+  $("#btnRawWrite").onclick=async()=>{
+    const body={did:"0x"+$("#rawDid").value.trim().replace(/^0x/i,""),hex:$("#rawHex").value.trim(),login:$("#rawLogin").value.trim()||null,session:$("#rawSess").value.trim()||null};
+    try{ const p=await api(`/api/module/${m.address}/did_write`,body);
+      if(!await confirmDlg("Записать DID?",`<div class="diff">${esc(p.did)}: ${esc(p.old)} → ${esc(p.new)}</div><p class="small warn">Ручная запись: убедитесь, что понимаете, что меняете. Резервная копия будет сделана.</p>`,"Записать")) return;
+      const r=await api(`/api/module/${m.address}/did_write`,{...body,confirm:true}); showResults([r.result]);
+    }catch(e){ errorDlg(e.message); }
+  };
 }
 function renderBits(){
   const m=state.current, orig=m.coding.bytes, cur=state.codingEdit;

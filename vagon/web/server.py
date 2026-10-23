@@ -201,6 +201,62 @@ class Api:
             return {"dry_run": False, **info, "result": r.to_dict()}
         return self.run(f"адаптация {addr}…", go)
 
+    def did_read(self, addr: str, body) -> dict:
+        v = self._vehicle()
+
+        def go():
+            did = parse_int(body["did"], bits=16)
+            data = v.module(addr).read_did(did)
+            return {"did": did_key(did), "hex": data.hex().upper(), "length": len(data),
+                    "text": "".join(chr(b) if 32 <= b < 127 else "." for b in data)}
+        return self.run(f"чтение DID {addr}…", go)
+
+    def did_write(self, addr: str, body) -> dict:
+        v = self._vehicle()
+
+        def go():
+            did = parse_int(body["did"], bits=16)
+            data = parse_hex(body["hex"])
+            s = v.module(addr)
+            if body.get("confirm") is not True:
+                cur = s.read_did(did)
+                return {"dry_run": True, "did": did_key(did), "old": cur.hex().upper(), "new": data.hex().upper()}
+            session = parse_int(body["session"]) if body.get("session") else 0x03
+            login = parse_int(body["login"]) if body.get("login") else None
+            r = s.write({did: data}, reason=f"web did {did_key(did)}", login=login, session=session,
+                        progress=self.progress)
+            return {"dry_run": False, "result": r.to_dict()}
+        return self.run(f"запись DID {addr}…", go)
+
+    def backup_all(self, _body) -> dict:
+        v = self._vehicle()
+
+        def go():
+            from ..vag.learn import IGNORED_DIDS, load_known_dids
+            found = [e for e in (v.found or v.scan(progress=self.progress)) if e.found]
+            vin = v.vin or v.read_vin() or "UNKNOWN"
+            saved = []
+            for e in found:
+                s = v.module(e.module.addr_hex)
+                self.progress(f"копия {s.module.label()}…")
+                try:
+                    ident = s.ident(refresh=True)
+                except (TimeoutError_, NegativeResponse):
+                    continue
+                dids = {"0x0600": ident.coding} if ident.coding else {}
+                for k in load_known_dids(vin, s.module.addr_hex, ident.odx_dataset).get("dids", {}):
+                    if int(k, 16) in IGNORED_DIDS:
+                        continue
+                    try:
+                        dids[k] = s.read_did(int(k, 16)).hex().upper()
+                    except (TimeoutError_, NegativeResponse):
+                        continue
+                b = self.app.store.save_backup(vin=vin, module=s.module.addr_hex, ident=ident.to_dict(),
+                                               coding=ident.coding, dids=dids, reason="full backup")
+                saved.append({"module": s.module.addr_hex, "values": len(dids), "path": b.path})
+            return {"saved": saved}
+        return self.run("копия всех блоков…", go)
+
     def recipes(self, q) -> dict:
         lang = (q.get("lang") or ["ru"])[0]
         return {"recipes": [r.to_summary(lang) for r in self.app.book.list()]}
@@ -432,14 +488,17 @@ class Handler(BaseHTTPRequestHandler):
             "/api/dtc": a.dtc, "/api/dtc/clear": a.dtc_clear, "/api/restore": a.restore,
             "/api/learn/start": a.learn_start, "/api/learn/finish": a.learn_finish,
             "/api/recipes/states": a.recipe_states, "/api/sim/change": a.sim_change,
+            "/api/backup_all": a.backup_all,
         }
         if path in simple:
             self._dispatch(lambda: simple[path](body))
         elif len(parts) == 4 and parts[:2] == ["api", "recipes"] and parts[3] in ("plan", "apply"):
             fn = a.recipe_plan if parts[3] == "plan" else a.recipe_apply
             self._dispatch(lambda: fn(parts[2], body))
-        elif len(parts) == 4 and parts[:2] == ["api", "module"] and parts[3] in ("coding", "channel"):
-            fn = a.coding_write if parts[3] == "coding" else a.channel_write
+        elif len(parts) == 4 and parts[:2] == ["api", "module"] and parts[3] in ("coding", "channel",
+                                                                                   "did_read", "did_write"):
+            fn = {"coding": a.coding_write, "channel": a.channel_write, "did_read": a.did_read,
+                  "did_write": a.did_write}[parts[3]]
             self._dispatch(lambda: fn(parts[2], body))
         else:
             self._json(404, {"error": "не найдено"})

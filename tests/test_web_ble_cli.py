@@ -187,3 +187,15 @@ def test_cli_no_yes_means_no_write(capsys, monkeypatch):
     main(["-a", "sim", "--no-trace", "recipe", "off", "cockpit.needle_sweep"])
     main(["-a", "sim", "--no-trace", "recipe", "on", "cockpit.needle_sweep"])
     assert "Нет подтверждения" in capsys.readouterr().out
+
+
+def test_web_raw_did_and_backup_all(web):
+    call(web, "/api/connect", {"adapter": "sim://?fresh=1"})
+    code, r = call(web, "/api/module/09/did_read", {"did": "0x0902"})
+    assert code == 200 and r["hex"] == "01"
+    code, dry = call(web, "/api/module/09/did_write", {"did": "0x0902", "hex": "03"})
+    assert dry["dry_run"] and dry["old"] == "01"
+    code, res = call(web, "/api/module/09/did_write", {"did": "0x0902", "hex": "03", "confirm": True})
+    assert code == 200 and res["result"]["verified"]
+    code, b = call(web, "/api/backup_all", {})
+    assert code == 200 and len(b["saved"]) >= 10
