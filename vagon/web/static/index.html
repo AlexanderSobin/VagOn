@@ -458,7 +458,11 @@ function planHtml(p){
     const w=Object.entries(m.writes); if(w.length) h+=`<div class="diff small">${w.map(([d,[o,n]])=>`${d}: ${o} → ${n}`).map(esc).join("\n")}</div>`;
   });
   p.warnings.forEach(w=>h+=`<p class="small warn">⚠ ${esc(w)}</p>`);
-  p.blockers.forEach(b=>h+=`<p class="small bad">✖ ${esc(b)}</p>`);
+  p.blockers.forEach(b=>{
+    h+=`<p class="small bad">✖ ${esc(b)}</p>`;
+    const m=/^([0-9A-F]{2}): канал «(.+?)» неизвестен/.exec(b);
+    if(m) h+=`<button class="small" data-teach-mod="${esc(m[1])}" data-teach-name="${esc(m[2])}">Обучить канал «${esc(m[2])}»…</button>`;
+  });
   if(p.nothing_to_do) h+=`<p class="ok">Ничего менять не нужно.</p>`;
   return h;
 }
@@ -466,6 +470,11 @@ async function planRecipe(r, action, quietCheck){
   try{
     const p=await api(`/api/recipes/${encodeURIComponent(r.id)}/plan`,{action});
     $("#planBox").innerHTML=planHtml(p);
+    $$("#planBox [data-teach-mod]").forEach(b=>b.onclick=()=>{
+      closeDlg(); go("learn"); $("#lrnMod").value=b.dataset.teachMod; $("#lrnName").value=b.dataset.teachName;
+      $("#lrnStep2").style.display="none"; $("#lrnResult").style.display="none";
+      toast("Нажмите «Снимок до», затем измените канал в ODIS/OBDeleven/MMI");
+    });
     if(quietCheck||p.blockers.length||p.nothing_to_do) return;
     const ok=await confirmDlg(action==="on"?"Включить?":"Выключить?", planHtml(p)+`<p class="small muted">Перед записью будет сделана резервная копия, после — проверка чтением.</p>`, action==="on"?"Включить":"Выключить");
     if(!ok) return;
