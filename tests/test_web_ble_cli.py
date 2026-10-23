@@ -213,3 +213,15 @@ def test_cli_dtc_only_found_modules(capsys, monkeypatch):
     assert main(["-a", "sim://?fresh=1", "--no-trace", "dtc"]) == 0
     assert "B1A0B 00" in capsys.readouterr().out
     assert "82" not in calls and len(calls) == 15        # HUD isn't in this car
+
+
+def test_web_rejects_foreign_host_and_paths(web, tmp_path):
+    req = urllib.request.Request(web + "/api/status", headers={"Host": "evil.example.com"})
+    with pytest.raises(urllib.error.HTTPError) as e:
+        urllib.request.urlopen(req, timeout=10)
+    assert e.value.code == 403
+    call(web, "/api/connect", {"adapter": "sim://?fresh=1"})
+    outside = tmp_path / "x.json"
+    outside.write_text('{"vagon_backup": 1, "module": "09", "dids": {}}')
+    code, err = call(web, "/api/restore", {"path": str(outside)})
+    assert code == 400 and "папке" in err["error"]

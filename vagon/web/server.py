@@ -335,7 +335,11 @@ class Api:
     def restore(self, body) -> dict:
         v = self._vehicle()
         from ..vag.store import Store
-        b = Store.load_backup(body["path"])
+        root = os.path.realpath(self.app.store.user_dir("backups"))
+        path = os.path.realpath(str(body.get("path", "")))
+        if os.path.commonpath([root, path]) != root:
+            raise ApiError("копия должна лежать в папке резервных копий VagOn")
+        b = Store.load_backup(path)
 
         def go():
             s = v.module(b.module)
@@ -446,7 +450,27 @@ class Handler(BaseHTTPRequestHandler):
         self._send(status, json.dumps(obj, ensure_ascii=False).encode("utf-8"),
                    "application/json; charset=utf-8")
 
+    def _host_ok(self) -> bool:
+        """DNS-rebinding defence: only answer requests addressed to this machine by IP/localhost."""
+        host = (self.headers.get("Host") or "").strip().lower()
+        if host.startswith("["):
+            name = host.split("]")[0] + "]"
+        else:
+            name = host.rsplit(":", 1)[0] if ":" in host else host
+        if name == "localhost":
+            return True
+        # DNS rebinding needs a domain name; an IP literal (127.0.0.1, the Mac's LAN IP…) is safe
+        import ipaddress
+        try:
+            ipaddress.ip_address(name.strip("[]"))
+            return True
+        except ValueError:
+            return False
+
     def do_GET(self):
+        if not self._host_ok():
+            self._json(403, {"error": "неверный Host"})
+            return
         u = urlparse(self.path)
         q = parse_qs(u.query)
         path = u.path
@@ -469,6 +493,9 @@ class Handler(BaseHTTPRequestHandler):
         raise ApiError("не найдено", 404)
 
     def do_POST(self):
+        if not self._host_ok():
+            self._json(403, {"error": "неверный Host"})
+            return
         if self.headers.get("X-VagOn") != "1":
             self._json(403, {"error": "запрос без заголовка X-VagOn отклонён"})
             return
