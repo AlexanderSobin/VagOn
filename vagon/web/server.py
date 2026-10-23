@@ -103,13 +103,20 @@ class Api:
         adapter = (body.get("adapter") or "").strip() or None
 
         def go():
+            from ..vag.check import adapter_check, format_check
             self.app.connect(adapter)
             v = self.app.vehicle
             try:
                 v.read_vin()
             except VagOnError:
                 pass
-            return self.status({})
+            st = self.status({})
+            try:
+                chk = adapter_check(v)
+                st["check"] = {"ok": chk["ok"], "lines": format_check(chk)}
+            except VagOnError as e:
+                st["check"] = {"ok": False, "lines": [str(e)]}
+            return st
         if self.app.vehicle is not None and adapter and adapter != self.app.adapter_url:
             self.app.disconnect()
         return self.run("подключение к адаптеру…", go)

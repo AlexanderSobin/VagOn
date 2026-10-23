@@ -143,6 +143,10 @@ def cmd_info(app: App, a) -> int:
         out(f"Напряжение: {volt:.1f} В{warn}")
     vin = v.read_vin()
     out(f"VIN: {vin or 'не прочитан (зажигание включено?)'}")
+    from .vag.check import adapter_check, format_check
+    out("Проверка адаптера для VAG:")
+    for ln in format_check(adapter_check(v)):
+        out(f"  {ln}")
     out(f"Данные VagOn: {data_dir()}")
     return 0
 

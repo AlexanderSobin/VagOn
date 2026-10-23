@@ -270,7 +270,8 @@ function renderStatus(s){
     const volt = s.info&&s.info.voltage!=null ? s.info.voltage : null;
     $("#carInfo").innerHTML = `<div>Адаптер</div><div>${esc(s.info?s.info.description:"")}</div>
       <div>Напряжение</div><div class="${volt!=null&&volt<12?'warn':''}">${volt!=null?volt.toFixed(1)+" В":"—"}${volt!=null&&volt<12?" — низкое, подключите зарядное":""}</div>
-      <div>VIN</div><div class="mono">${esc(s.vin||"—")}</div>`;
+      <div>VIN</div><div class="mono">${esc(s.vin||"—")}</div>`
+      + (s.check ? `<div>Проверка</div><div class="${s.check.ok?'ok':'warn'}">${s.check.lines.map(esc).join("<br>")}</div>` : "");
     $("#simChangeBox").style.display = s.sim?"block":"none";
   } else {
     pill.textContent="не подключено"; pill.classList.remove("on"); $("#carCard").style.display="none";
