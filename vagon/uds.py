@@ -41,6 +41,10 @@ FORBIDDEN_SIDS = {
 }
 ALLOWED_SESSIONS = {SESSION_DEFAULT, SESSION_EXTENDED, 0x4F}
 
+# How many request bytes after the SID a positive response echoes (sub-function / identifier).
+_ECHO_LEN = {READ_DID: 2, WRITE_DID: 2, DIAGNOSTIC_SESSION_CONTROL: 1, SECURITY_ACCESS: 1,
+             ROUTINE_CONTROL: 3, READ_DTC: 1, ECU_RESET: 1, TESTER_PRESENT: 1}
+
 
 def check_policy(payload: bytes) -> None:
     if not payload:
@@ -67,7 +71,7 @@ class UdsClient:
     """
 
     def __init__(self, channel: Channel, *, timeout: float = 2.0, pending_timeout: float = 6.0,
-                 busy_retries: int = 3, max_pending: int = 30):
+                 busy_retries: int = 8, max_pending: int = 30):
         self.ch = channel
         self.timeout = timeout
         self.pending_timeout = pending_timeout
@@ -88,7 +92,7 @@ class UdsClient:
             except NegativeResponse as e:
                 if e.nrc == NRC_BUSY and busy_left > 0:
                     busy_left -= 1
-                    time.sleep(0.2)
+                    time.sleep(0.3)
                     continue
                 raise
             finally:
@@ -115,7 +119,12 @@ class UdsClient:
                         continue
                     raise NegativeResponse(sid, resp[2], payload)
                 if resp[0] == (sid + 0x40) & 0xFF:
-                    return resp
+                    n = _ECHO_LEN.get(sid, 0)
+                    if resp[1:1 + n] == payload[1:1 + n]:
+                        return resp
+                    # same service, other identifier: a late answer to an earlier request
+                    log.debug("ответ на другой идентификатор пропущен: %s", to_hex(resp))
+                    continue
                 # anything else is a stray reply (e.g. late answer to a previous request)
                 log.debug("игнорирую посторонний ответ %s", to_hex(resp))
             if pending and deadline is not None and time.monotonic() < deadline:

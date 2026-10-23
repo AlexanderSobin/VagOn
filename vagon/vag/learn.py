@@ -148,47 +148,69 @@ def diff(before: dict[int, bytes], after: dict[int, bytes], noisy: set[int] | No
 
 
 def infer_channel(change: DidChange, name: str, old_name: str = "", new_name: str = "",
-                  source: str = "", bit: int | None = None, bits: int | None = None) -> Channel:
+                  source: str = "", bit: int | None = None, bits: int | None = None,
+                  byte: int | None = None) -> Channel:
     """Bit field for one learned change.
 
-    Numeric values (old/new given as numbers) cover whole bytes, because one change
-    reveals only the bits that happened to flip. Named values get the smallest field
-    covering every changed bit; `bit`/`bits` override the guess.
+    * named values ("active" → "not active"): the smallest field covering the flipped bits,
+      which must lie in ONE byte (otherwise save the change as a recipe instead);
+    * numbers that equal the raw values of that smallest field ("1" → "0") stay a flag;
+    * other numbers (10 s → 30 s, 7.6 V → 12.1 V) cover whole bytes, scale/offset derived;
+    * `bit` + `bits` (and optionally `byte`) set the field explicitly; it must cover every
+      flipped bit.
     """
     changed = change.changed_bits()
     if not changed:
         raise VagOnError("в этом DID ничего не изменилось")
     first_byte = min(b for b, _ in changed)
     last_byte = max(b for b, _ in changed)
-    numeric = _as_float(old_name) is not None and _as_float(new_name) is not None
-    if numeric:
-        lo, width = 0, (last_byte - first_byte + 1) * 8
+    old_f, new_f = _as_float(old_name), _as_float(new_name)
+    numeric = old_f is not None and new_f is not None and old_f != new_f
+    length = len(change.old)
+
+    def channel(b0: int, lo: int, width: int) -> Channel:
+        return Channel(name=name, did=change.did, byte=b0, bit=lo, bits=width, source=source, length=length)
+
+    if bit is not None or bits is not None or byte is not None:
+        if bit is None or bits is None:
+            raise VagOnError("укажите поле целиком: --bit и --bits (и при необходимости --byte)")
+        ch = channel(first_byte if byte is None else byte, bit, bits)
+        _require_cover(ch, changed)
     else:
-        # bit positions inside the big-endian word data[first_byte:last_byte+1]
         positions = [(last_byte - b) * 8 + bt for b, bt in changed]
         lo, hi = min(positions), max(positions)
-        width = hi - lo + 1
-    if bit is not None:
-        lo = bit
-    if bits is not None:
-        width = bits
-    ch = Channel(name=name, did=change.did, byte=first_byte, bit=lo, bits=width, source=source,
-                 length=len(change.old))
+        minimal = channel(first_byte, lo, hi - lo + 1)
+        if numeric and not (old_f == minimal.extract(change.old) and new_f == minimal.extract(change.new)):
+            ch = channel(first_byte, 0, (last_byte - first_byte + 1) * 8)     # a real number: whole bytes
+        else:
+            numeric = False
+            if first_byte != last_byte:
+                raise VagOnError("изменились биты в нескольких байтах — это не похоже на один канал. "
+                                 "Сохраните изменение рецептом (--recipe-name) или задайте поле явно "
+                                 "(--byte/--bit/--bits).")
+            ch = minimal
     old_v, new_v = ch.extract(change.old), ch.extract(change.new)
-    ch.values = {}
-    old_f, new_f = _as_float(old_name), _as_float(new_name)
-    if old_f is not None and new_f is not None and old_f != new_f:
-        # two physical points → linear scaling (e.g. 7.6 V → 12.1 V)
+    if old_v == new_v:
+        raise VagOnError("поле не захватывает изменившиеся биты — проверьте --bit/--bits")
+    if numeric:
         ch.scale = (new_f - old_f) / (new_v - old_v)
         ch.offset = old_f - old_v * ch.scale
-        return ch
-    if old_name:
-        ch.values[old_name] = old_v
-    if new_name:
-        ch.values[new_name] = new_v
-    if not ch.values:
-        ch.values = {"old": old_v, "new": new_v}
+    else:
+        ch.values = {(old_name or "old"): old_v, (new_name or "new"): new_v}
+        if (old_name or "old") == (new_name or "new"):
+            raise VagOnError("старое и новое значение названы одинаково")
+    Channel.from_json(ch.to_json())        # validates the field before it is ever saved
     return ch
+
+
+def _require_cover(ch: Channel, changed: list[tuple[int, int]]) -> None:
+    n = (ch.bit + ch.bits + 7) // 8
+    for b, bt in changed:
+        if not (ch.byte <= b < ch.byte + n):
+            raise VagOnError(f"байт {b} изменился, но не входит в заданное поле")
+        pos = (ch.byte + n - 1 - b) * 8 + bt
+        if not (ch.bit <= pos < ch.bit + ch.bits):
+            raise VagOnError(f"бит {bt} байта {b} изменился, но не входит в заданное поле")
 
 
 def _as_float(text: str) -> float | None:
@@ -239,12 +261,18 @@ class LearnSession:
         return {int(k, 16) for k in self.data.get("noisy", [])}
 
     def finish(self, sess: ModuleSession) -> list[DidChange]:
+        """Second snapshot + diff. The 'before' snapshot is kept until commit(), so a
+        rejected label (wrong name/field) can be retried without starting over."""
         before = self.before()
         after = snapshot(sess, list(before))
-        changes = diff(before, after, self.noisy())
-        done = self.path.replace("_pending.json", f"_{time.strftime('%Y%m%d_%H%M%S')}.json")
         self.data["after"] = {f"0x{d:04X}": v.hex().upper() for d, v in after.items()}
+        return diff(before, after, self.noisy())
+
+    def commit(self) -> str:
+        """Archive the finished learn session (removes the pending snapshot)."""
+        done = self.path.replace("_pending.json", f"_{time.strftime('%Y%m%d_%H%M%S')}.json")
         with open(done, "w", encoding="utf-8") as f:
             json.dump(self.data, f, indent=1)
-        os.remove(self.path)
-        return changes
+        if os.path.exists(self.path):
+            os.remove(self.path)
+        return done

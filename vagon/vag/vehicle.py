@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from ..errors import (NegativeResponse, ResponsePendingTimeout, SafetyError, TimeoutError_,
-                      TransportError, VagOnError, VerifyError)
+                      TransportError, VagOnError)
 from ..hexutil import to_hex
 from ..transport.base import Transport
 from ..uds import SESSION_DEFAULT, SESSION_EXTENDED, UdsClient
@@ -61,6 +61,17 @@ def explain_write_error(e: NegativeResponse, *, login: int | None, module: Modul
     if e.nrc in (0x7F, 0x7E):
         return base + "\nНужна другая диагностическая сессия."
     return base
+
+
+class WriteFailed(VagOnError):
+    """A write did not complete. `status`: failed | partial | unknown | verify_failed."""
+
+    def __init__(self, message: str, *, status: str, backup: str | None = None,
+                 applied: list[str] | None = None):
+        super().__init__(message)
+        self.status = status
+        self.backup = backup
+        self.applied = applied or []
 
 
 @dataclass
@@ -155,9 +166,78 @@ class ModuleSession:
                 raise
 
     # ---------------------------------------------------------------- writing
+    def _check_voltage(self, notes: list[str]) -> None:
+        minimum = self.vehicle.min_write_voltage
+        read = getattr(self.vehicle.transport, "read_voltage", None)
+        if not minimum or read is None:
+            return
+        try:
+            volt = read()
+        except VagOnError:
+            return
+        if volt is None:
+            return
+        if volt < minimum:
+            raise SafetyError(f"напряжение {volt:.1f} В — слишком низкое для записи (нужно ≥ {minimum:.1f} В). "
+                              "Подключите зарядное/бустер. Ничего не записано.")
+        if volt < 12.0:
+            notes.append(f"напряжение {volt:.1f} В — лучше подключить зарядное")
+
+    def _read_patiently(self, did: int, seconds: float = 10.0) -> bytes:
+        """Read a DID, waiting while the module is still busy after a write (0x21/0x78/silence)."""
+        deadline = time.monotonic() + seconds
+        while True:
+            try:
+                return self.uds.read_did(did)
+            except NegativeResponse as e:
+                if e.nrc not in (0x21, 0x78) or time.monotonic() > deadline:
+                    raise
+            except (ResponsePendingTimeout, TimeoutError_):
+                if time.monotonic() > deadline:
+                    raise
+            time.sleep(0.4)
+
+    def _assess(self, todo: dict[int, bytes], old: dict[int, bytes]) -> tuple[str, list[str], set[int], dict]:
+        """After a failure: what actually landed in the module?
+        → (status, lines, applied DIDs, {did: value now in the module} for every DID that was read)."""
+        applied, lines, now = set(), [], {}
+        unknown = unchanged = other = 0
+        for did, new in todo.items():
+            try:
+                got = self._read_patiently(did, seconds=4.0)
+            except VagOnError as e:
+                unknown += 1
+                lines.append(f"{did_key(did)}: не удалось прочитать ({e})")
+                continue
+            now[did] = got
+            if got == new:
+                applied.add(did)
+                lines.append(f"{did_key(did)}: записано ({got.hex().upper()})")
+            elif got == old[did]:
+                unchanged += 1
+                lines.append(f"{did_key(did)}: не изменено ({got.hex().upper()})")
+            else:
+                other += 1
+                lines.append(f"{did_key(did)}: в блоке {got.hex().upper()} (ожидалось {new.hex().upper()})")
+        if unknown:
+            status = "unknown"
+        elif len(applied) == len(todo):
+            status = "ok"
+        elif applied or other:
+            status = "partial"
+        else:
+            status = "failed"
+        return status, lines, applied, now
+
     def write(self, changes: dict[int, bytes], *, reason: str, login: int | None = None,
               session: int = SESSION_EXTENDED, dry_run: bool = False, force_login: bool = False,
-              auto_login: bool = True, progress: ProgressFn | None = None) -> WriteResult:
+              auto_login: bool = True, progress: ProgressFn | None = None,
+              expected: dict[int, bytes] | None = None, skip_rejected: bool = False) -> WriteResult:
+        """Write DIDs safely.
+
+        expected      — values the caller planned against; if the module changed meanwhile, abort
+        skip_rejected — (restore of full backups) skip DIDs the module refuses as read-only/unknown
+        """
         say = progress or (lambda _m: None)
         if self.module.protected:
             raise SafetyError(f"блок {self.module.label()} защищён в VagOn — запись запрещена")
@@ -176,6 +256,11 @@ class ModuleSession:
                 raise SafetyError(f"длина {did_key(did)} в блоке {len(cur)} байт, а записать хотят "
                                   f"{len(new)} — отмена (рецепт не подходит к этому блоку)")
             current[did] = cur
+        for did, old in (expected or {}).items():
+            if did in current and current[did] != old:
+                raise SafetyError(f"{did_key(did)} изменился после проверки плана "
+                                  f"({old.hex().upper()} → {current[did].hex().upper()}): "
+                                  "постройте план заново. Ничего не записано.")
         todo = {did: new for did, new in changes.items() if current[did] != new}
         result.unchanged = [did_key(d) for d in changes if d not in todo]
         for did, new in todo.items():
@@ -186,6 +271,7 @@ class ModuleSession:
             return result
         if dry_run:
             return result
+        self._check_voltage(result.notes)
 
         say("сохраняю резервную копию…")
         backup = self.vehicle.store.save_backup(
@@ -197,36 +283,49 @@ class ModuleSession:
         set_patient = getattr(self.vehicle.transport, "set_patient", None)
         if set_patient:
             set_patient(True)
+        done: set[int] = set()          # DIDs the module acknowledged (or answered 'pending' for)
+        skipped: dict[int, str] = {}
         try:
-            written: set[int] = set()
-            attempt_login = login
-            while True:
-                try:
-                    self._write_sequence(todo, written, session, attempt_login, force_login,
-                                         result.notes, say)
-                    break
-                except NegativeResponse as e:
-                    if (e.nrc == 0x33 and attempt_login is None and auto_login
-                            and self.module.address in COMMON_LOGINS):
-                        attempt_login = COMMON_LOGINS[self.module.address][0]
-                        result.notes.append(f"блок потребовал логин — пробую типовой код {attempt_login}")
-                        continue
-                    self._journal(result, "failed", str(e), reason)
-                    if e.sid == 0x27:
-                        raise VagOnError(f"логин {attempt_login} не принят: {e}") from e
-                    raise VagOnError(explain_write_error(e, login=attempt_login,
-                                                         module=self.module)) from e
-            say("проверяю…")
-            bad = []
-            for did, new in todo.items():
-                got = self.uds.read_did(did)
-                if got != new:
-                    bad.append(f"{did_key(did)}: ожидалось {to_hex(new, '')}, в блоке {to_hex(got, '')}")
+            try:
+                attempt_login = login
+                while True:
+                    try:
+                        self._write_sequence(todo, done, skipped, session, attempt_login, force_login,
+                                             result.notes, say, skip_rejected)
+                        break
+                    except NegativeResponse as e:
+                        if (e.nrc == 0x33 and attempt_login is None and auto_login
+                                and self.module.address in COMMON_LOGINS):
+                            attempt_login = COMMON_LOGINS[self.module.address][0]
+                            result.notes.append(f"блок потребовал логин — пробую типовой код {attempt_login}")
+                            continue
+                        raise
+                say("проверяю…")
+                verify = {d: n for d, n in todo.items() if d not in skipped}
+                bad = []
+                for did, new in verify.items():
+                    got = self._read_patiently(did)
+                    if got != new:
+                        bad.append(f"{did_key(did)}: ожидалось {to_hex(new, '')}, в блоке {to_hex(got, '')}")
+            except SafetyError as e:
+                if done:     # some DIDs were already written: find out the real state
+                    return self._handle_failure(e, todo, current, result, reason, backup,
+                                                attempt_login, done, skipped)
+                # refused before anything was sent (login guard, UDS policy)
+                self._journal(result, "failed", str(e), reason)
+                raise
+            except VagOnError as e:
+                return self._handle_failure(e, todo, current, result, reason, backup, attempt_login,
+                                            done, skipped)
+            for did, why in skipped.items():
+                result.written.pop(did_key(did), None)
+                result.notes.append(f"{did_key(did)} пропущен: {why}")
             if bad:
                 self._journal(result, "verify_failed", "; ".join(bad), reason)
-                raise VerifyError("блок принял запись, но хранит другое значение:\n" + "\n".join(bad) +
+                raise WriteFailed("блок принял запись, но хранит другое значение:\n" + "\n".join(bad) +
                                   "\n(часть битов может быть недоступна в этой версии ПО). "
-                                  f"Резервная копия: {backup.path}")
+                                  f"Вернуть как было: vagon restore \"{backup.path}\"",
+                                  status="verify_failed", backup=backup.path)
             result.verified = True
             self._journal(result, "ok", "", reason)
             return result
@@ -238,9 +337,41 @@ class ModuleSession:
                     pass
             self._ident = None
 
-    def _write_sequence(self, todo: dict[int, bytes], written: set[int], session: int,
-                        login: int | None, force_login: bool, notes: list[str], say) -> None:
-        """session → login → F199/F198 → writes. Raises NegativeResponse unchanged."""
+    def _handle_failure(self, err: VagOnError, todo, current, result, reason, backup, login, done,
+                        skipped) -> WriteResult:
+        """Something failed after the backup: find out what the module holds now."""
+        if isinstance(err, NegativeResponse) and err.sid == 0x27:
+            self._journal(result, "failed", f"login {login}: {err}", reason)
+            raise WriteFailed(f"логин {login} не принят: {err}. Ничего не записано.", status="failed",
+                              backup=backup.path) from err
+        base = (explain_write_error(err, login=login, module=self.module)
+                if isinstance(err, NegativeResponse) else str(err))
+        status, lines, applied, now = self._assess({d: n for d, n in todo.items() if d not in skipped},
+                                                    current)
+        if status == "ok":
+            # the write landed, only its answer got lost — confirmed by reading back
+            result.verified = True
+            result.notes.append(f"ответ блока потерялся ({err}), но запись подтверждена чтением")
+            self._journal(result, "ok", f"recovered: {err}", reason)
+            return result
+        # journal what really changed in the module (applied, or an unexpected value)
+        result.written = {did_key(d): (current[d].hex().upper(), v.hex().upper())
+                          for d, v in now.items() if v != current[d]}
+        self._journal(result, status, f"{err} | " + "; ".join(lines), reason)
+        advice = {
+            "failed": "Блок не изменён.",
+            "partial": "Блок изменён ЧАСТИЧНО. Вернуть как было:",
+            "unknown": "Состояние блока неизвестно (связь прервалась). Переподключитесь и проверьте; вернуть как было:",
+        }[status]
+        msg = base + "\n\nПроверка чтением:\n  " + "\n  ".join(lines) + "\n" + advice
+        if status != "failed":
+            msg += f"\n  vagon restore \"{backup.path}\""
+        raise WriteFailed(msg, status=status, backup=backup.path, applied=[did_key(d) for d in applied]) from err
+
+    def _write_sequence(self, todo: dict[int, bytes], done: set[int], skipped: dict[int, str], session: int,
+                        login: int | None, force_login: bool, notes: list[str], say,
+                        skip_rejected: bool) -> None:
+        """session → login → F199/F198 → writes. NegativeResponse propagates unchanged."""
         say("открываю сессию…")
         self.enter_session(session)
         if login is not None:
@@ -248,14 +379,20 @@ class ModuleSession:
             self.login(login, force=force_login)
         self._workshop_prerequisites(notes)
         for did, new in todo.items():
-            if did in written:
+            if did in done or did in skipped:
                 continue
             say(f"пишу {did_key(did)}…")
             try:
                 self.uds.write_did(did, new)
             except ResponsePendingTimeout:
-                notes.append(f"{did_key(did)}: ответ 'ожидайте' без итога — проверяю чтением")
-            written.add(did)
+                notes.append(f"{did_key(did)}: блок долго обрабатывает запись — жду и проверяю")
+                self._read_patiently(did)        # wait until the module is free again
+            except NegativeResponse as e:
+                if skip_rejected and e.nrc in (0x31, 0x13, 0x11, 0x12, 0x7E, 0x7F):
+                    skipped[did] = f"блок не принимает запись ({e.nrc:#04x} — только чтение/живое значение)"
+                    continue
+                raise
+            done.add(did)
 
     def _journal(self, result: WriteResult, status: str, error: str, reason: str) -> None:
         self.vehicle.store.journal(vin=self.vehicle.vin, module=self.module.addr_hex, status=status,
@@ -268,19 +405,37 @@ class ModuleSession:
                           progress=progress)
 
     def restore(self, backup: Backup, *, login: int | None = None, dry_run: bool = False,
-                progress: ProgressFn | None = None) -> WriteResult:
+                progress: ProgressFn | None = None, coding_only: bool = False,
+                force: bool = False) -> WriteResult:
         if backup.module.upper() != self.module.addr_hex:
             raise SafetyError(f"копия от блока {backup.module}, а выбран {self.module.addr_hex}")
-        vin = self.vehicle.vin
-        if vin and backup.data.get("vin") and backup.data["vin"] != vin:
-            raise SafetyError(f"копия от другого автомобиля ({backup.data['vin']})")
+        ident = self.ident(refresh=True)
+        vin = self.vehicle.vin or (ident.vin if len(ident.vin) == 17 else None)
+        bvin = backup.data.get("vin") or ""
+        if vin and bvin and bvin not in ("UNKNOWN", "UNKNOWN_VIN") and bvin != vin:
+            raise SafetyError(f"копия от другого автомобиля ({bvin}, а подключён {vin})")
+        bid = backup.data.get("ident") or {}
+        mismatch = [f"{k}: в копии {bid.get(k)!r}, в блоке {getattr(ident, k)!r}"
+                    for k in ("part_number", "odx_dataset")
+                    if bid.get(k) and getattr(ident, k) and bid.get(k) != getattr(ident, k)]
+        if mismatch and not force:
+            raise SafetyError("копия от другого блока (замена/обновление ПО?):\n  " + "\n  ".join(mismatch) +
+                              "\nЕсли уверены — restore --force")
+        if not vin and not bid and not force:
+            raise SafetyError("не удаётся убедиться, что копия от этого автомобиля (нет VIN и идентификации) — "
+                              "restore --force, если уверены")
         changes: dict[int, bytes] = {}
         for k, v in backup.dids.items():
-            changes[int(k, 16)] = bytes.fromhex(v)
-        if not changes and backup.coding:
+            did = int(k, 16)
+            if coding_only and did != DID_CODING:
+                continue
+            changes[did] = bytes.fromhex(v)
+        if DID_CODING not in changes and backup.coding:
             changes[DID_CODING] = bytes.fromhex(backup.coding)
+        if not changes:
+            raise SafetyError("в копии нечего восстанавливать")
         return self.write(changes, reason=f"restore {backup.created}", login=login, dry_run=dry_run,
-                          progress=progress)
+                          progress=progress, skip_rejected=True)
 
 
 @dataclass
@@ -293,6 +448,8 @@ class ScanEntry:
 
 
 class Vehicle:
+    min_write_voltage = 11.5     # refuse writes below this battery voltage (0 = no check)
+
     def __init__(self, transport: Transport, store: Store | None = None):
         self.transport = transport
         self.store = store or Store()

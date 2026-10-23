@@ -344,7 +344,7 @@ class Api:
         def go():
             s = v.module(b.module)
             dry = body.get("confirm") is not True
-            r = s.restore(b, dry_run=dry, progress=self.progress)
+            r = s.restore(b, dry_run=dry, progress=self.progress, coding_only=bool(body.get("coding_only")))
             return {"dry_run": dry, "result": r.to_dict()}
         return self.run(f"восстановление {b.module}…", go)
 
@@ -393,6 +393,8 @@ class Api:
                 rec = build_learned_recipe(rid, body["recipe_name"], s.module.addr_hex, changes, ident)
                 save_user_recipe(rec)
                 res["recipe"] = rid
+            if res.get("channel") or res.get("recipe") or not changes:
+                ls.commit()
             self.app.reload()
             return res
         return self.run("обучение: сравнение…", go)

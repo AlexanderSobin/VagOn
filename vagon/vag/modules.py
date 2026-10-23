@@ -42,7 +42,10 @@ MODULES: list[Module] = [
     _m(0x05, "Доступ и запуск (Kessy)", "Access/Start Authorization", 0x732, "LL_AccesStartInterUDS"),
     _m(0x08, "Климат", "Auto HVAC", 0x746, "LL_AirCondiUDS"),
     _m(0x09, "Центральная электроника (BCM)", "Central Electrics", 0x70E, "LL_CentrElectUDS"),
-    _m(0x10, "Парковка (Park Assist)", "Park/Steer Assist", 0x70A, "LL_ParkiAssis2UDS"),
+    # 10 and 76 are two generations of the same function on the same CAN ids (0x70A/0x774):
+    # a car has one of them; VagOn shows whichever answers as 10.
+    _m(0x10, "Парковка (10/76: Park Assist, парктроник)", "Park/Steer Assist (10/76)", 0x70A,
+       "LL_ParkiAssis2UDS"),
     _m(0x13, "Адаптивный круиз (ACC)", "Distance Regulation", 0x757, "LL_AdaptCruisContrUDS"),
     _m(0x15, "Подушки безопасности", "Airbags", 0x715, "LL_AirbaUDS", protected=True),
     _m(0x16, "Рулевая колонка (подрулевые)", "Steering Column Electronics", 0x70C, "LL_SteerColumElectUDS"),
@@ -69,7 +72,7 @@ MODULES: list[Module] = [
     _m(0x6C, "Камера заднего вида", "Rear View Camera", 0x769, "LL_CamerSysteRearViewUDS"),
     _m(0x6D, "Крышка багажника", "Deck Lid", 0x723, "LL_DeckLidContrUnitUDS"),
     _m(0x75, "Телематика (Audi connect / eCall)", "Telematics", 0x767, "LL_TelemUDS"),
-    _m(0x76, "Парктроник", "Park Assist", 0x70A, "LL_ParkiAssisUDS"),
+    _m(0x76, "Парктроник (то же, что 10)", "Park Assist (same as 10)", 0x70A, "LL_ParkiAssisUDS"),
     _m(0x77, "Телефон / OCU", "Telephone", 0x76B, "LL_TelepUDS"),
     _m(0x82, "Проекционный дисплей (HUD)", "Head Up Display", 0x71B, "LL_HeadUpDisplUDS"),
     _m(0x8B, "Адаптивный круиз 2", "Adaptive Cruise Control 2", 0x756, "LL_AdaptCruisContr2UDS"),

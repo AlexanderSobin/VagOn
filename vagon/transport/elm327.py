@@ -26,7 +26,7 @@ import re
 import time
 
 from .. import isotp
-from ..errors import AdapterError, IsoTpError, TimeoutError_, TransportError
+from ..errors import AdapterError, EchoMismatch, IsoTpError, TimeoutError_, TransportError
 from ..hexutil import to_hex
 from .base import Channel, Link, TraceHook, Transport
 
@@ -71,6 +71,8 @@ class Elm327(Transport):
         self._fc_warned = False
         self._cfc_off = False
         self._broken: str | None = None
+        self._echo: bool | None = None     # does this adapter echo? (None while probing)
+        self._last_had_echo = False
         self._connected = False
 
     # ---------------------------------------------------------------- tracing
@@ -113,18 +115,42 @@ class Elm327(Transport):
                 self._rxbuf += chunk
                 last = time.monotonic()
 
+    @staticmethod
+    def _strip_prefix(line: str, sent: str) -> str | None:
+        """If `line` starts with `sent` (ignoring spaces/case), return the rest, else None."""
+        want = sent.replace(" ", "").upper()
+        i = n = 0
+        up = line.upper()
+        while n < len(want) and i < len(up):
+            if up[i] == " ":
+                i += 1
+                continue
+            if up[i] != want[n]:
+                return None
+            i += 1
+            n += 1
+        return line[i:].strip() if n == len(want) else None
+
     def _lines(self, text: str, sent: str | None) -> list[str]:
+        """Split an answer into lines and remove (and verify) the echo of `sent`."""
         lines = [ln.strip() for ln in re.split(r"[\r\n]+", text)]
         lines = [ln for ln in lines if ln]
-        if sent is not None and lines:
-            first = lines[0].replace(" ", "").upper()
-            if first == sent.replace(" ", "").upper():
-                lines = lines[1:]
-            elif first.startswith(sent.replace(" ", "").upper()):
-                # echo glued to the answer (some clones omit the CR after the echo)
-                rest = lines[0].replace(" ", "")[len(sent.replace(" ", "")):]
-                lines = ([rest] if rest else []) + lines[1:]
-        return lines
+        if sent is None or self._echo is False:
+            return lines
+        rest = self._strip_prefix(lines[0], sent) if lines else None
+        self._last_had_echo = rest is not None
+        if rest is not None:
+            # exact echo, or echo glued to the answer (clones that omit the CR)
+            return ([rest] if rest else []) + lines[1:]
+        if self._echo is None:
+            return lines            # still probing whether this adapter echoes at all
+        heard = lines[0] if lines else "(ничего)"
+        is_request = all(c in "0123456789ABCDEFabcdef" for c in sent)
+        if not is_request:
+            # a misheard AT command may have changed any setting: state unknown
+            self._broken = f"эхо команды {sent} не совпало"
+            self._tx_id = self._rx_id = None
+        raise EchoMismatch(sent, heard)
 
     def _cmd(self, cmd: str, *, timeout: float | None = None, expect_ok: bool = True,
              allow_unknown: bool = False) -> list[str]:
@@ -151,8 +177,9 @@ class Elm327(Transport):
             self._rxbuf.clear()
             text = junk.decode("ascii", "replace")
             self._t("<<!", text)
-            if "ELM" in text or "RESET" in text:
+            if "ELM" in text or "RESET" in text or "STN" in text:
                 self._broken = "адаптер перезагрузился"
+                self._tx_id = self._rx_id = None
                 raise TransportError("адаптер перезагрузился (просадка питания?) — переподключитесь")
         else:
             self._rxbuf.clear()
@@ -182,8 +209,15 @@ class Elm327(Transport):
             raise AdapterError("это не похоже на ELM327: нет ответа на ATZ/ATI")
         self.version = banner
         self._broken = None
-        # Explicit settings (don't rely on factory defaults / programmable params)
-        for cmd in ("ATE1", "ATL0", "ATS1", "ATH1"):
+        self._echo = None
+        # Explicit settings (don't rely on factory defaults / programmable params).
+        # Echo stays ON and is verified for every later line.
+        self._cmd("ATE1")
+        self._cmd("ATI", expect_ok=False)       # echo is certainly on now: was "ATI" repeated?
+        self._echo = self._last_had_echo
+        if not self._echo:
+            log.warning("адаптер не повторяет команды (нет эха) — проверка эха отключена")
+        for cmd in ("ATL0", "ATS1", "ATH1"):
             self._cmd(cmd)
         self._cmd("ATD0", allow_unknown=True)  # no DLC display (v1.3+)
         self._cmd("ATCAF1")
@@ -299,7 +333,15 @@ class Elm327(Transport):
                 continue
             if any(up.startswith(s) for s in _STATUS_IGNORABLE):
                 continue
-            if "<" in up or any(s in up for s in _STATUS_FATAL) or up.startswith("ERR"):
+            if "<" in up or any(s in up for s in _STATUS_FATAL) or up.startswith("ERR") \
+                    or "ELM327" in up or up.startswith("STN"):
+                if any(x in up for x in ("LV RESET", "ELM327", "ACT ALERT", "LP ALERT", "STOPPED")) \
+                        or up.startswith("STN") or up.startswith("ERR9"):
+                    # the adapter reset or was interrupted: every setting is back to defaults
+                    self._broken = f"адаптер сообщил «{ln}»"
+                    self._tx_id = self._rx_id = None
+                    raise TransportError(f"адаптер перезагрузился/прервался («{ln}») — просадка питания? "
+                                         "Переподключитесь; VagOn проверит результат записи чтением.")
                 if "BUFFER FULL" in up:
                     raise AdapterError("BUFFER FULL: адаптер не успевает — увеличьте STmin (--stmin 20)")
                 if "CAN ERROR" in up or "BUS ERROR" in up:
@@ -355,6 +397,11 @@ class Elm327(Transport):
                 r.feed(f)
         return r.in_progress
 
+    # Services whose positive answer may need several frames (reads, DTC lists). Only these use
+    # the short-listen manual flow-control path; writes, sessions and logins keep ATSTFF so a
+    # slow module answer is never missed.
+    MULTIFRAME_ANSWER_SIDS = {0x22, 0x19, 0x1A}
+
     def _request_manual_fc(self, rx_id: int, payload: bytes, timeout: float) -> list[bytes]:
         """Single-frame request on an adapter without ATFCSM1: answer the module's First
         Frame with our own Flow Control frame (sent raw to the module's request id).
@@ -368,6 +415,10 @@ class Elm327(Transport):
             self._set_st(self.FC_LISTEN_ST)
             self._set_caf(True)
             frames = self._parse_frames(self._raw_request(payload.hex().upper(), timeout), rx_id)
+            if not frames:
+                # nothing within 200 ms: a slow module — ask again patiently (reads are idempotent)
+                self._set_st(0xFF)
+                frames = self._parse_frames(self._raw_request(payload.hex().upper(), timeout), rx_id)
             if self._needs_fc(frames):
                 self._set_caf(False)
                 fc = isotp.flow_control(isotp.FC_CTS, 0, self.st_min_ms, pad=isotp.PAD)
@@ -386,7 +437,7 @@ class Elm327(Transport):
             raise TransportError("адаптер не подключён")
         self._set_target(tx_id, rx_id)
         if len(payload) <= 7:
-            if not self._fc_ok:
+            if not self._fc_ok and payload[0] in self.MULTIFRAME_ANSWER_SIDS:
                 return self._request_manual_fc(rx_id, payload, timeout)
             self._set_caf(True)
             lines = self._raw_request(payload.hex().upper(), timeout)

@@ -162,3 +162,71 @@ def test_learn_ignores_workshop_dids(sim, vehicle):
     e.dids[0x0902] = b"\x05"
     changes = LearnSession.load("09").finish(s)
     assert [c.did for c in changes] == [0x0902]
+
+
+def test_learned_recipe_keeps_dataset_guard(sim, vehicle, labels):
+    s = vehicle.module("09")
+    LearnSession.start(s, [0x0902], "VIN")
+    ecu(sim, 0x09).dids[0x0902] = b"\x05"
+    changes = LearnSession.load("09").finish(s)
+    save_user_recipe(build_learned_recipe("user.guard", "G", "09", changes, s.ident()))
+    r = RecipeBook.load_default().get("user.guard")
+    assert r.requires == {"09": {"dataset_prefix": ["EV_BCMSIM_AU38X"]}}
+    ecu(sim, 0x09).dids[0xF19E] = b"EV_OTHER\x00"
+    vehicle.module("09")._ident = None
+    assert any("датасет" in b for b in plan_recipe(vehicle, r, "on", labels).blockers)
+
+
+def test_revert_uses_only_this_cars_backup(sim, vehicle, labels):
+    from vagon.sim.link import SimLink
+    from vagon.transport.elm327 import Elm327
+    from vagon.vag.store import Store
+    from vagon.vag.vehicle import Vehicle
+    r = RecipeBook.load_default().get("lights.rs3_taillight_animation")
+    e = ecu(sim, 0x09)
+    e.dids[0x0902] = b"\x03"
+    apply_plan(vehicle, plan_recipe(vehicle, r, "on", labels))
+    vehicle.store.save_backup(vin="WAUOTHERCAR000001", module="09", ident={}, coding=None,
+                              dids={"0x0902": "01"}, reason="recipe lights.rs3_taillight_animation on")
+    v2 = Vehicle(Elm327(SimLink(sim)).connect(), Store())       # like a fresh CLI run (VIN unknown)
+    apply_plan(v2, plan_recipe(v2, r, "off", labels))
+    assert e.dids[0x0902] == b"\x03"
+
+
+def test_recipe_validation_strict():
+    base = {"id": "x", "module": "09", "sources": ["s"]}
+    bad_changes = [
+        {"kind": "coding_bit", "byte": -1, "bit": 0, "on": 1},
+        {"kind": "coding_bit", "byte": 0, "bit": 8, "on": 1},
+        {"kind": "did_bits", "did": "0x0901", "byte": 0, "mask": "0x01", "on": "0x02"},
+        {"kind": "did_bytes", "did": "0x0901", "offset": -2, "on": "00"},
+        {"kind": "did_bytes", "did": "0x0901", "on": "0000", "off": "00"},
+    ]
+    for c in bad_changes:
+        with pytest.raises(ValueError):
+            recipe_from_json({**base, "changes": [c]})
+    ok = {"kind": "coding_bit", "byte": 0, "bit": 0, "on": 1, "off": 0}
+    with pytest.raises(ValueError):
+        recipe_from_json({**base, "requires": {"dataset_prefix": "EV_WRONG"}, "changes": [ok]})
+    with pytest.raises(ValueError):
+        recipe_from_json({**base, "requires": {"datset_prefix": ["EV"]}, "changes": [ok]})
+    r = recipe_from_json({**base, "requires": {"0x17": {"dataset_prefix": ["EV_K"]}}, "changes": [ok]})
+    assert r.requires == {"17": {"dataset_prefix": ["EV_K"]}}
+
+
+def test_labels_need_dataset_and_bad_user_files_tolerated(vagon_home):
+    from vagon.errors import VagOnError
+    from vagon.vag.labels import Channel, LabelDB, save_user_channel
+    with pytest.raises(VagOnError, match="датасет"):
+        save_user_channel("5F", "", Channel("Developer mode", 0x0970, bits=1, values={"a": 0, "b": 1}))
+    save_user_channel("5F", "EV_X", Channel("Developer mode", 0x0970, bits=1, values={"a": 0, "b": 1}))
+    with pytest.raises(VagOnError, match="уже привязан"):
+        save_user_channel("09", "EV_X", Channel("Other", 0x0901, bits=1, values={"a": 0, "b": 1}))
+    bad = vagon_home / "labels" / "broken.json"
+    bad.write_text('{"vagon_labels": 1, "datasets": {"EV": {"channels": [{"name": "x", "did": "0x1", "bit": 9}]}}}')
+    db = LabelDB.load_default()
+    assert db.load_errors and db.find("5F", "EV_X", "developer mode") is not None
+    (vagon_home / "recipes").mkdir(exist_ok=True)
+    (vagon_home / "recipes" / "broken.json").write_text("{not json")
+    book = RecipeBook.load_default()
+    assert book.load_errors and "mmi.wireless_carplay" in book.recipes

@@ -429,15 +429,17 @@ def cmd_restore(app: App, a) -> int:
     b = Store.load_backup(a.file)
     v = app.connect()
     s = v.module(b.module)
-    res = s.restore(b, login=a.login, dry_run=True)
+    kw = dict(login=a.login, coding_only=a.coding_only, force=a.force)
+    res = s.restore(b, dry_run=True, **kw)
     for did, (old, new) in res.written.items():
         out(f"[{b.module}] {did}: {old} → {new}")
     if not res.written:
         out("Блок уже в состоянии копии.")
         return 0
+    out("Идентификаторы, которые блок не принимает (живые значения, только чтение), будут пропущены.")
     if not confirm("Восстановить?", a.yes):
         return 1
-    print_write_result(s.restore(b, login=a.login, progress=progress))
+    print_write_result(s.restore(b, progress=progress, **kw))
     return 0
 
 
@@ -477,7 +479,8 @@ def cmd_learn(app: App, a) -> int:
     ls = LearnSession.load(s.module.addr_hex)
     changes = ls.finish(s)
     if not changes:
-        out("Изменений не найдено. Изменение не сохранилось в блоке или оно в другом блоке.")
+        out("Изменений не найдено (снимок «до» сохранён — можно изменить настройку и снова выполнить finish). "
+            "Возможно, изменение в другом блоке или в DID вне опрошенных диапазонов (--ranges full).")
         return 1
     out("Изменились:")
     for c in changes:
@@ -493,7 +496,8 @@ def cmd_learn(app: App, a) -> int:
                 "(или используйте --recipe-name, чтобы сохранить всё целиком).")
             return 2
         ch = infer_channel(pick[0], a.name, a.old or "", a.new or "",
-                           source=f"learn {time.strftime('%Y-%m-%d')}", bit=a.bit, bits=a.bits)
+                           source=f"learn {time.strftime('%Y-%m-%d')}", bit=a.bit, bits=a.bits,
+                           byte=a.byte)
         if a.session:
             ch.session = parse_int(a.session)
         path = save_user_channel(s.module.addr_hex, ident.odx_dataset, ch)
@@ -512,6 +516,11 @@ def cmd_learn(app: App, a) -> int:
                                       session=parse_int(a.session) if a.session else None)
         path = save_user_recipe(recipe)
         out(f"Рецепт {rid} сохранён в {path}. Включить/выключить: vagon recipe on|off {rid}")
+    if a.name or a.recipe_name:
+        ls.commit()
+    else:
+        out("Подсказка: добавьте --name … или --recipe-name …, чтобы сохранить результат "
+            "(снимок «до» пока сохранён).")
     return 0
 
 
@@ -619,6 +628,8 @@ def build_parser() -> argparse.ArgumentParser:
                    "(по умолчанию $VAGON_ADAPTER или wifi)")
     p.add_argument("--stmin", type=int, default=10, help="пауза между кадрами от блока, мс (по умолчанию 10)")
     p.add_argument("--no-trace", action="store_true", help="не писать журнал обмена с адаптером")
+    p.add_argument("--min-voltage", type=float, default=11.5,
+                   help="не писать при напряжении ниже (В, по умолчанию 11.5; 0 — не проверять)")
     p.add_argument("-v", "--verbose", action="store_true")
     sub = p.add_subparsers(dest="cmd", required=True)
 
@@ -678,6 +689,8 @@ def build_parser() -> argparse.ArgumentParser:
     sp = add("restore", cmd_restore, "восстановить из резервной копии")
     sp.add_argument("file")
     sp.add_argument("--login", type=int)
+    sp.add_argument("--coding-only", action="store_true", help="только длинное кодирование (0x0600)")
+    sp.add_argument("--force", action="store_true", help="даже если номер детали/датасет блока другой")
     sp.add_argument("--yes", action="store_true")
 
     sp = add("learn", cmd_learn, "обучение: start MOD → изменить настройку → finish MOD")
@@ -688,6 +701,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--old", help="название старого значения (или число, напр. 7.6)")
     sp.add_argument("--new", help="название нового значения (или число, напр. 12.1)")
     sp.add_argument("--did", help="какой из изменившихся DID взять")
+    sp.add_argument("--byte", type=int, help="первый байт поля внутри DID (с --bit/--bits)")
     sp.add_argument("--bit", type=int, help="младший бит поля (если угадано неверно)")
     sp.add_argument("--bits", type=int, help="ширина поля в битах (если угадано неверно)")
     sp.add_argument("--recipe-name", help="сохранить все изменения как рецепт с таким названием")
@@ -732,6 +746,8 @@ def main(argv: list[str] | None = None) -> int:
     a = parser.parse_args(argv)
     logging.basicConfig(level=logging.DEBUG if a.verbose else logging.WARNING,
                         format="%(name)s: %(message)s")
+    from .vag.vehicle import Vehicle
+    Vehicle.min_write_voltage = a.min_voltage
     app = App(a.adapter, st_min_ms=a.stmin, trace=not a.no_trace)
     try:
         return a.fn(app, a) or 0

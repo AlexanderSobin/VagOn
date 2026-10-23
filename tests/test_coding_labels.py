@@ -96,6 +96,27 @@ def test_infer_channel_enum_numeric_multibyte():
     assert (num.bit, num.bits) == (0, 8) and num.scale == pytest.approx(10) and num.offset == pytest.approx(0)
     volt = infer_channel(DidChange(3, bytes([76]), bytes([121])), "volt", "7.6", "12.1")
     assert volt.resolve_value("12.1") == 121
-    wide = infer_channel(DidChange(4, b"\x00\x01\x00", b"\x01\x00\x00"), "w", "a", "b")
+    # named values whose bits sit in two bytes are refused (would swallow unrelated bits)
+    from vagon.errors import VagOnError
+    with pytest.raises(VagOnError, match="нескольких байтах"):
+        infer_channel(DidChange(4, b"\x00\x01\x00", b"\x01\x00\x00"), "w", "a", "b")
+    # ...unless the field is given explicitly and covers every changed bit
+    wide = infer_channel(DidChange(4, b"\x00\x01\x00", b"\x01\x00\x00"), "w", "a", "b", bit=0, bits=9)
     assert (wide.byte, wide.bit, wide.bits) == (0, 0, 9)
     assert wide.extract(b"\x01\x00\x00") == 0x100 and wide.extract(b"\x00\x01\x00") == 0x001
+    with pytest.raises(VagOnError):
+        infer_channel(DidChange(4, b"\x00\x01\x00", b"\x01\x00\x00"), "w", "a", "b", bit=0, bits=4)
+
+
+def test_infer_channel_review_cases():
+    from vagon.errors import VagOnError
+    # (a) a lone --bit override is refused instead of silently keeping a wrong width
+    with pytest.raises(VagOnError):
+        infer_channel(DidChange(1, b"\x0F", b"\x0B"), "f", "active", "not active", bit=3)
+    # (b) numbers that are the raw flag values stay a single-bit flag (no whole-byte scale)
+    flag = infer_channel(DidChange(1, b"\x03", b"\x02"), "f", "1", "0")
+    assert (flag.bit, flag.bits, flag.scale) == (0, 1, None)
+    assert flag.insert(b"\x02", flag.resolve_value("1")) == b"\x03"     # neighbour bit 1 untouched
+    # names must differ
+    with pytest.raises(VagOnError):
+        infer_channel(DidChange(1, b"\x01", b"\x00"), "f", "x", "x")

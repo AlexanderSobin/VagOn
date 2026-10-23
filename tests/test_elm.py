@@ -152,3 +152,92 @@ def test_tcp_link_end_to_end(vagon_home):
     finally:
         stop.set()
         t.join(3)
+
+
+# ---------------------------------------------------------------- review regressions
+class FlakyLink(SimLink):
+    """Corrupts one hex digit of the next written line that starts with `prefix`."""
+    prefix = None
+
+    def write(self, data):
+        if self.prefix and data.startswith(self.prefix):
+            data = data[:2] + (b"8" if data[2:3] != b"8" else b"9") + data[3:]
+            self.prefix = None
+        super().write(data)
+
+
+def test_corrupted_request_echo_detected(vagon_home):
+    from vagon.errors import EchoMismatch
+    sim = make_sim_elm()
+    link = FlakyLink(sim)
+    elm = Elm327(link).connect()
+    assert elm._echo is True
+    u = client(elm)
+    link.prefix = b"22F1"
+    with pytest.raises(EchoMismatch):
+        u.read_did(0xF187)
+    assert not elm._broken, "a misheard data line leaves the adapter usable for read-back"
+    assert u.read_did(0xF187) == b"5WA937084AB"
+
+
+def test_corrupted_at_command_marks_unknown_state(vagon_home):
+    from vagon.errors import EchoMismatch, TransportError
+    sim = make_sim_elm()
+    link = FlakyLink(sim)
+    elm = Elm327(link).connect()
+    link.prefix = b"ATSH"
+    with pytest.raises(EchoMismatch):
+        client(elm, "17").read_did(0xF187)
+    with pytest.raises(TransportError, match="неизвестном состоянии"):
+        client(elm, "17").read_did(0xF187)
+
+
+def test_glued_echo_keeps_status_words(vagon_home):
+    sim = make_sim_elm(echo_glued=True)
+    elm = Elm327(SimLink(sim)).connect()
+    with pytest.raises(TimeoutError_):           # "NO DATA" must stay "NO DATA"
+        client(elm, "82").read_did(0xF187)
+    from vagon.vag.store import Store
+    from vagon.vag.vehicle import Vehicle
+    found = [e.module.addr_hex for e in Vehicle(elm, Store()).scan() if e.found]
+    assert "09" in found and "82" not in found
+
+
+def test_adapter_reset_mid_answer(sim, elm):
+    from vagon.errors import TransportError
+    u = client(elm)
+    u.read_did(0xF187)
+    orig = sim._send_request
+
+    def resetting(data):
+        sim.reset()
+        return ["LV RESET", "", "ELM327 v1.5"]
+    sim._send_request = resetting
+    with pytest.raises(TransportError, match="перезагрузился"):
+        u.read_did(0xF189)
+    sim._send_request = orig
+    n = len(sim.frames_sent)
+    with pytest.raises(TransportError):
+        u.read_did(0xF189)
+    assert len(sim.frames_sent) == n, "nothing may go out on stale settings after a reset"
+
+
+def test_weak_clone_slow_write_answer_not_missed(vagon_home, monkeypatch):
+    """Writes on an adapter without ATFCSM1 keep the long listen window (ATSTFF)."""
+    from vagon.sim.elm import SimElm327
+    sim = make_sim_elm(bad_fcsm=True)
+    elm = Elm327(SimLink(sim)).connect()
+    orig = SimElm327._collect
+
+    def slow_write(self, replies):          # module answers a write only after 300 ms
+        if any(f[1:2] == b"\x6E" for _, f in replies) and self.st * 0.004 < 0.3:
+            self.clock.advance(self.st * 0.004)
+            return ["NO DATA"]
+        return orig(self, replies)
+    monkeypatch.setattr(SimElm327, "_collect", slow_write)
+    u = client(elm, "5F")
+    u.diagnostic_session(3)
+    seed = u.request_seed(3)
+    u.send_key(3, ((int.from_bytes(seed, "big") + 20103) & 0xFFFFFFFF).to_bytes(4, "big"))
+    u.write_did(0x0961, b"\x01")             # answer must be heard
+    assert ecu(sim, 0x5F).dids[0x0961] == b"\x01"

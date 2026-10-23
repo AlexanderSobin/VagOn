@@ -237,3 +237,19 @@ def test_cli_diff_backups(capsys):
     assert main(["--no-trace", "diff", "--module", "17"]) == 0
     out = capsys.readouterr().out
     assert "Блок 17" in out or "Различий нет" in out
+
+
+def test_cli_learn_retry_after_rejected_field(capsys):
+    assert main(["-a", "sim://?fresh=1", "--no-trace", "sim-reset"]) == 0
+    assert main(["-a", "sim", "--no-trace", "learn", "start", "09", "--ranges", "0900-0905"]) == 0
+    # 'another tool' flips bits in two different DIDs → one channel name can't describe it
+    assert main(["-a", "sim", "--no-trace", "sim-change", "09", "0902", "05"]) == 0
+    assert main(["-a", "sim", "--no-trace", "sim-change", "09", "0904", "0B"]) == 0
+    capsys.readouterr()
+    assert main(["-a", "sim", "--no-trace", "learn", "finish", "09", "--name", "X"]) == 2
+    assert "несколько" in capsys.readouterr().out
+    # same snapshot, now saved as a recipe
+    assert main(["-a", "sim", "--no-trace", "learn", "finish", "09", "--recipe-name", "Combo"]) == 0
+    assert "user.combo" in capsys.readouterr().out
+    assert main(["-a", "sim", "--no-trace", "recipe", "off", "user.combo", "--yes"]) == 0
+    assert main(["-a", "sim", "--no-trace", "learn", "finish", "09", "--name", "X"]) == 2   # committed

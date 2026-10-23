@@ -15,6 +15,15 @@ class AdapterError(TransportError):
     """The adapter reported an error or answered something unexpected."""
 
 
+class EchoMismatch(AdapterError):
+    """The adapter echoed something other than what was sent: a corrupted request may have
+    reached the bus. The caller must verify the module state by reading back."""
+
+    def __init__(self, sent: str, heard: str):
+        self.sent, self.heard = sent, heard
+        super().__init__(f"адаптер услышал «{heard}» вместо «{sent}» — команда могла уйти искажённой")
+
+
 class TimeoutError_(TransportError):
     """No answer from the module in time."""
 

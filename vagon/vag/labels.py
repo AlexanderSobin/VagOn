@@ -162,6 +162,7 @@ class Dataset:
 class LabelDB:
     def __init__(self) -> None:
         self.datasets: list[Dataset] = []
+        self.load_errors: list[str] = []
 
     @classmethod
     def load_default(cls, extra_files: list[str] | None = None, include_user: bool = True) -> "LabelDB":
@@ -174,8 +175,15 @@ class LabelDB:
             ud = sub_dir("labels")
             files += [os.path.join(ud, f) for f in sorted(os.listdir(ud)) if f.endswith(".json")]
         files += list(extra_files or [])
+        user_root = sub_dir("labels") if include_user else None
         for f in files:
-            db.load_file(f)
+            try:
+                db.load_file(f)
+            except (OSError, ValueError, KeyError, TypeError) as e:
+                if user_root and os.path.dirname(os.path.abspath(f)) == os.path.abspath(user_root):
+                    db.load_errors.append(f"{f}: {e}")     # a broken user file must not stop VagOn
+                    continue
+                raise
         return db
 
     def load_file(self, path: str) -> None:
@@ -224,13 +232,19 @@ class LabelDB:
 
 
 def save_user_channel(module: str, odx_dataset: str, channel: Channel) -> str:
-    """Add/replace a channel in <data>/labels/user.json."""
+    """Add/replace a channel in <data>/labels/user.json (always bound to a dataset)."""
+    from ..errors import VagOnError
+    if not odx_dataset:
+        raise VagOnError("ODX-датасет блока (F19E) не прочитан — метку не к чему привязать. Повторите.")
+    channel = Channel.from_json(channel.to_json())       # validate before writing
     path = os.path.join(sub_dir("labels"), "user.json")
     data = {"vagon_labels": 1, "datasets": {}}
     if os.path.exists(path):
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
-    ds = data["datasets"].setdefault(odx_dataset or "*", {"module": module.upper(), "channels": []})
+    ds = data["datasets"].setdefault(odx_dataset, {"module": module.upper(), "channels": []})
+    if ds.get("module", "").upper() not in ("", module.upper()):
+        raise VagOnError(f"датасет {odx_dataset} уже привязан к блоку {ds['module']}")
     ds["channels"] = [c for c in ds["channels"] if norm_name(c["name"]) != norm_name(channel.name)]
     ds["channels"].append(channel.to_json())
     tmp = path + ".tmp"

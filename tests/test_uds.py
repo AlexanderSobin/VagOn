@@ -94,3 +94,13 @@ def test_policy_blocks_flashing(payload):
 def test_policy_allows_dev_session():
     ch = FakeChannel([[b"\x50\x4F\x00\x32\x01\xF4"]])
     UdsClient(ch).diagnostic_session(0x4F)
+
+
+def test_late_answer_for_other_did_skipped():
+    ch = FakeChannel([[b"\x6E\x09\x60", b"\x6E\x09\x61"]])
+    UdsClient(ch).write_did(0x0961, b"\x01")
+    ch2 = FakeChannel([[b"\x62\x06\x00\x01", b"\x62\xF1\x87ABC"]])
+    assert UdsClient(ch2).read_did(0xF187) == b"ABC"
+    ch3 = FakeChannel([[b"\x67\x03\x00\x00\x00\x00"]])
+    with pytest.raises(TimeoutError_):
+        UdsClient(ch3).send_key(0x03, b"\x00\x00\x00\x01")     # 67 03 isn't an answer to 27 04

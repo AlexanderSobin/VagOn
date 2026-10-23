@@ -128,6 +128,7 @@ def recipe_from_json(d: dict, origin: str = "") -> Recipe:
             raise ValueError(f"{rid}: изменение #{i}: нет 'channel'")
         if "on" not in spec:
             raise ValueError(f"{rid}: изменение #{i}: нет значения 'on'")
+        _validate_positions(rid, i, kind, spec)
         changes.append(Change(kind, mod, spec))
     if not changes:
         raise ValueError(f"{rid}: нет изменений")
@@ -146,12 +147,75 @@ def recipe_from_json(d: dict, origin: str = "") -> Recipe:
     status = d.get("status", "community")
     if status not in STATUSES:
         raise ValueError(f"{rid}: неизвестный статус {status!r}")
+    requires = _normalize_requires(rid, d.get("requires") or {}, module)
     return Recipe(id=rid, title=d.get("title", {"ru": rid}), module=module, changes=changes,
                   description=d.get("description", {}), category=d.get("category", "other"),
-                  status=status, logins=logins, sessions=sessions, requires=d.get("requires", {}),
+                  status=status, logins=logins, sessions=sessions, requires=requires,
                   sfd=d.get("sfd", "unknown"), sources=list(d.get("sources", [])),
                   notes=d.get("notes", {}), after=d.get("after", {}), cars=list(d.get("cars", [])),
                   origin=origin)
+
+
+REQUIRE_KEYS = {"dataset_prefix", "part_prefix", "sw_not", "coding_length"}
+
+
+def _validate_positions(rid: str, i: int, kind: str, spec: dict) -> None:
+    where = f"{rid}: изменение #{i}"
+    if "byte" in spec and (not isinstance(spec["byte"], int) or spec["byte"] < 0):
+        raise ValueError(f"{where}: byte должен быть целым ≥ 0")
+    if kind == "coding_bit" and (not isinstance(spec.get("bit"), int) or not 0 <= spec["bit"] <= 7):
+        raise ValueError(f"{where}: bit должен быть 0..7")
+    if kind in ("coding_bits", "did_bits"):
+        mask = parse_int(spec.get("mask", ""), bits=8)
+        if mask == 0:
+            raise ValueError(f"{where}: пустая маска")
+        for side in ("on", "off"):
+            if side in spec and parse_int(spec[side], bits=8) & ~mask:
+                raise ValueError(f"{where}: значение {side} не помещается в маску")
+    if kind == "did_bytes":
+        if not isinstance(spec.get("offset", 0), int) or spec.get("offset", 0) < 0:
+            raise ValueError(f"{where}: offset должен быть целым ≥ 0")
+        on = parse_hex(spec["on"])
+        if "off" in spec and len(parse_hex(spec["off"])) != len(on):
+            raise ValueError(f"{where}: on и off разной длины")
+    if kind in ("did_bits", "did_bytes"):
+        parse_int(spec["did"], bits=16)
+
+
+def _normalize_requires(rid: str, req: dict, module: str) -> dict:
+    """Flat {'dataset_prefix': [...]} (for the recipe module) or {'5F': {...}, '17': {...}}."""
+    if not isinstance(req, dict):
+        raise ValueError(f"{rid}: requires должен быть объектом")
+
+    def one(r: dict) -> dict:
+        bad = set(r) - REQUIRE_KEYS
+        if bad:
+            raise ValueError(f"{rid}: неизвестные условия в requires: {sorted(bad)}")
+        out = {}
+        for k in ("dataset_prefix", "part_prefix", "sw_not"):
+            if k in r:
+                v = r[k]
+                if isinstance(v, str) or not all(isinstance(x, str) and x for x in v):
+                    raise ValueError(f"{rid}: requires.{k} должен быть списком строк")
+                out[k] = list(v)
+        if "coding_length" in r:
+            out["coding_length"] = int(r["coding_length"])
+        return out
+    if not req:
+        return {}
+    if set(req) & REQUIRE_KEYS:
+        return {module: one(req)}
+    out = {}
+    for k, v in req.items():
+        try:
+            mod = _norm_module(k)
+        except KeyError:
+            raise ValueError(f"{rid}: в requires неизвестный ключ {k!r} (ожидались {sorted(REQUIRE_KEYS)} "
+                             "или адреса блоков)") from None
+        if not isinstance(v, dict):
+            raise ValueError(f"{rid}: requires[{k!r}] должен быть объектом")
+        out[mod] = one(v)
+    return out
 
 
 def recipe_to_json(r: Recipe) -> dict:
@@ -172,6 +236,7 @@ def recipe_to_json(r: Recipe) -> dict:
 class RecipeBook:
     def __init__(self) -> None:
         self.recipes: dict[str, Recipe] = {}
+        self.load_errors: list[str] = []
 
     @classmethod
     def load_default(cls, include_user: bool = True, extra_dirs: list[str] | None = None) -> "RecipeBook":
@@ -180,12 +245,19 @@ class RecipeBook:
         if include_user:
             dirs.append(sub_dir("recipes"))
         dirs += list(extra_dirs or [])
+        bundled = os.path.abspath(package_data("recipes"))
         for d in dirs:
             if not os.path.isdir(d):
                 continue
             for name in sorted(os.listdir(d)):
-                if name.endswith(".json"):
+                if not name.endswith(".json"):
+                    continue
+                try:
                     book.load_file(os.path.join(d, name))
+                except (OSError, ValueError, KeyError, TypeError) as e:
+                    if os.path.abspath(d) == bundled:
+                        raise
+                    book.load_errors.append(f"{name}: {e}")   # a broken user file must not stop VagOn
         return book
 
     def load_file(self, path: str) -> None:
@@ -264,8 +336,7 @@ def _pick_value(ch: Channel, wanted, side: str):
 
 
 def _check_requires(recipe: Recipe, module: str, ident: dict, coding_len: int | None) -> list[str]:
-    req = recipe.requires.get(module) if isinstance(recipe.requires.get(module), dict) else (
-        recipe.requires if module == recipe.module else {})
+    req = recipe.requires.get(module) or {}
     problems = []
     ds = ident.get("odx_dataset", "")
     part = ident.get("part_number", "")
@@ -281,10 +352,20 @@ def _check_requires(recipe: Recipe, module: str, ident: dict, coding_len: int | 
     return problems
 
 
-def _latest_recipe_backup(vehicle: Vehicle, recipe: Recipe, module: str):
+def _latest_recipe_backup(vehicle: Vehicle, recipe: Recipe, module: str, ident: dict):
+    """The backup saved when this recipe was switched on — on THIS car and THIS module."""
+    if not vehicle.vin:
+        return None
     tag = f"recipe {recipe.id} on"
-    found = [b for b in vehicle.store.list_backups(vin=vehicle.vin, module=module)
-             if b.data.get("reason", "") == tag]
+    found = []
+    for b in vehicle.store.list_backups(vin=vehicle.vin, module=module):
+        if b.data.get("reason", "") != tag:
+            continue
+        bid = b.data.get("ident") or {}
+        if any(bid.get(k) and ident.get(k) and bid.get(k) != ident.get(k)
+               for k in ("part_number", "odx_dataset")):
+            continue          # the module was replaced/updated since
+        found.append(b)
     return found[-1] if found else None
 
 
@@ -308,6 +389,8 @@ def plan_recipe(vehicle: Vehicle, recipe: Recipe, action: str = "on",
             plan.blockers.append(f"{mod}: блок не отвечает (нет в этой машине?)")
             continue
         mp.ident = ident.to_dict()
+        if not vehicle.vin and len(ident.vin) == 17:
+            vehicle.vin = ident.vin
         cur_values: dict[int, bytes] = {}
         new_values: dict[int, bytearray] = {}
 
@@ -328,10 +411,11 @@ def plan_recipe(vehicle: Vehicle, recipe: Recipe, action: str = "on",
             try:
                 if want is None:
                     if action == "off":
-                        backup = backup or _latest_recipe_backup(vehicle, recipe, mod)
+                        backup = backup or _latest_recipe_backup(vehicle, recipe, mod, mp.ident)
                         if backup is None:
+                            why = "" if vehicle.vin else " (VIN машины не прочитан)"
                             plan.blockers.append(f"{ch_.describe()}: нет значения 'off' и нет резервной "
-                                                 "копии от включения — используйте restore")
+                                                 f"копии от включения на этой машине{why} — используйте restore")
                             continue
                     else:
                         continue
@@ -460,13 +544,16 @@ def apply_plan(vehicle: Vehicle, plan: Plan, *, progress=None, force_login: bool
             continue
         sess = vehicle.module(mp.module)
         changes = {did: new for did, (_old, new) in mp.writes.items()}
+        expected = {did: old for did, (old, _new) in mp.writes.items()}
         try:
             results.append(sess.write(changes, reason=reason, login=mp.login, session=mp.session,
-                                      progress=progress, force_login=force_login))
+                                      progress=progress, force_login=force_login, expected=expected))
         except VagOnError as e:
-            done = ", ".join(r.module for r in results)
-            raise VagOnError(f"{e}\n(блоки, уже изменённые этим рецептом: {done or 'нет'}; "
-                             "для отката: restore из резервных копий)") from e
+            changed = [r.module for r in results if r.written]
+            if getattr(e, "status", "") in ("partial", "unknown"):
+                changed.append(f"{mp.module} (частично/неизвестно)")
+            raise VagOnError(f"{e}\n(блоки, уже изменённые этим рецептом: {', '.join(changed) or 'нет'}; "
+                             f"откат: vagon recipe off {plan.recipe.id} или vagon restore <копия>)") from e
     return results
 
 
@@ -488,7 +575,7 @@ def build_learned_recipe(rid: str, title: str, module: str, changes, ident, *,
                  category="learned", status="user", sfd="unknown",
                  description={"ru": f"Записано режимом обучения {_time.strftime('%Y-%m-%d')} на "
                                     f"{ident.part_number} SW {ident.sw_version}"},
-                 requires={"dataset_prefix": [ident.odx_dataset]} if ident.odx_dataset else {})
+                 requires={module: {"dataset_prefix": [ident.odx_dataset]}} if ident.odx_dataset else {})
     if login is not None:
         rec.logins[module] = login
     if session is not None:
