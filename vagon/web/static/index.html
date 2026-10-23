@@ -1,0 +1,553 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<title>VagOn</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%23e0343c%22/%3E%3Ctext x=%2216%22 y=%2223%22 font-size=%2218%22 text-anchor=%22middle%22 fill=%22white%22 font-family=%22Arial%22 font-weight=%22bold%22%3EV%3C/text%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#0f1115;--panel:#171a21;--panel2:#1e222b;--line:#2a2f3a;--text:#e8eaf0;--muted:#9aa3b2;
+  --accent:#e0343c;--accent2:#ff5a60;--ok:#2fbf71;--warn:#f0a020;--bad:#ff4d4f;--info:#4aa3ff;
+  --radius:14px;--shadow:0 6px 24px rgba(0,0,0,.35);
+}
+@media (prefers-color-scheme: light){
+  :root{--bg:#f3f4f7;--panel:#fff;--panel2:#f6f7fa;--line:#e1e4ea;--text:#151821;--muted:#5f6878;--shadow:0 6px 24px rgba(0,0,0,.08)}
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%}
+header{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(10px);
+  padding:calc(env(safe-area-inset-top) + 10px) 16px 10px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line)}
+.logo{font-weight:800;letter-spacing:.5px;font-size:19px}.logo b{color:var(--accent)}
+.pill{margin-left:auto;font-size:12px;padding:4px 10px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60vw}
+.pill.on{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 40%,var(--line))}
+main{padding:14px 16px calc(90px + env(safe-area-inset-bottom));max-width:900px;margin:0 auto}
+section{display:none}section.active{display:block}
+h2{font-size:20px;margin:6px 0 12px}h3{font-size:16px;margin:16px 0 8px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin:0 0 12px;box-shadow:var(--shadow)}
+.muted{color:var(--muted)}.small{font-size:13px}.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;overflow-wrap:anywhere}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.grow{flex:1}
+button,.btn{appearance:none;border:1px solid var(--line);background:var(--panel2);color:var(--text);padding:10px 14px;border-radius:11px;font-size:15px;font-weight:600;cursor:pointer;touch-action:manipulation}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.danger{background:transparent;border-color:var(--bad);color:var(--bad)}
+button.ghost{background:transparent}
+button:disabled{opacity:.5}
+input,select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--text);font-size:16px}
+label{display:block;font-size:13px;color:var(--muted);margin:8px 0 4px}
+.list .item{display:flex;align-items:center;gap:10px;padding:12px 4px;border-bottom:1px solid var(--line);cursor:pointer}
+.list .item:last-child{border-bottom:0}
+.addr{font-family:ui-monospace,Menlo,monospace;font-weight:700;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:3px 7px;min-width:38px;text-align:center}
+.badge{font-size:11px;padding:3px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.badge.on{color:var(--ok);border-color:var(--ok)}.badge.off{color:var(--muted)}.badge.partial{color:var(--warn);border-color:var(--warn)}
+.badge.learn{color:var(--info);border-color:var(--info)}.badge.bad{color:var(--bad);border-color:var(--bad)}
+.badge.status{color:var(--muted)}
+nav{position:fixed;bottom:0;left:0;right:0;z-index:6;display:flex;background:color-mix(in srgb,var(--panel) 92%,transparent);backdrop-filter:blur(12px);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;border:0;background:transparent;border-radius:0;padding:10px 2px 8px;font-size:11px;font-weight:600;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:3px}
+nav button.active{color:var(--accent2)}
+nav svg{width:22px;height:22px}
+.bits{display:grid;grid-template-columns:52px repeat(8,1fr);gap:4px;font-family:ui-monospace,Menlo,monospace;font-size:12px;align-items:center}
+.bit{border:1px solid var(--line);border-radius:7px;text-align:center;padding:6px 0;background:var(--panel2);cursor:pointer;user-select:none}
+.bit.set{background:color-mix(in srgb,var(--accent) 30%,var(--panel2));border-color:var(--accent)}
+.bit.changed{outline:2px solid var(--warn)}
+.diff{font-family:ui-monospace,Menlo,monospace;font-size:13px;background:var(--panel2);border-radius:10px;padding:10px;white-space:pre-wrap;overflow-wrap:anywhere}
+.warn{color:var(--warn)}.bad{color:var(--bad)}.ok{color:var(--ok)}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:20;padding:20px}
+.overlay.show{display:flex}
+.modal{background:var(--panel);border:1px solid var(--line);border-radius:18px;max-width:640px;width:100%;max-height:85vh;overflow:auto;padding:18px;box-shadow:var(--shadow)}
+.spinner{width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 12px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast{pointer-events:none;position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom));background:var(--panel2);border:1px solid var(--line);padding:10px 14px;border-radius:12px;z-index:30;box-shadow:var(--shadow);max-width:92vw;display:none;white-space:pre-wrap}
+.toast.show{display:block}.toast.err{border-color:var(--bad)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:14px}.kv div:nth-child(odd){color:var(--muted)}
+.seg{display:flex;background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:3px;gap:3px}
+.seg button{flex:1;border:0;background:transparent;padding:8px 6px;font-size:13px}
+.seg button.active{background:var(--panel);box-shadow:0 1px 4px rgba(0,0,0,.2)}
+details summary{cursor:pointer;color:var(--muted);margin:8px 0}
+.logbox{font-family:ui-monospace,Menlo,monospace;font-size:11px;white-space:pre;overflow:auto;max-height:60vh;background:var(--panel2);padding:10px;border-radius:10px}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Vag<b>On</b></div>
+  <div id="pill" class="pill">не подключено</div>
+</header>
+
+<main>
+<!-- ===================== CONNECT ===================== -->
+<section id="tab-connect" class="active">
+  <h2>Подключение</h2>
+  <div class="card">
+    <label>Адаптер</label>
+    <div class="seg" id="adSeg">
+      <button data-ad="wifi" class="active">Wi-Fi</button>
+      <button data-ad="ble">Bluetooth LE</button>
+      <button data-ad="sim">Симулятор</button>
+      <button data-ad="custom">Другой</button>
+    </div>
+    <div id="adCustomBox" style="display:none">
+      <label>Адрес (tcp://IP:порт, ble://ИМЯ, serial:///dev/cu.…, sim://?sfd=5F)</label>
+      <input id="adCustom" placeholder="tcp://192.168.0.10:35000" autocapitalize="off" autocorrect="off">
+    </div>
+    <p class="small muted" id="adHint"></p>
+    <div class="row">
+      <button class="primary grow" id="btnConnect">Подключить</button>
+      <button class="ghost" id="btnDisconnect">Отключить</button>
+    </div>
+  </div>
+  <div class="card" id="carCard" style="display:none">
+    <div class="kv" id="carInfo"></div>
+    <div class="row" style="margin-top:12px">
+      <button class="primary grow" id="btnScan">Найти блоки</button>
+      <button id="btnScanDtc">+ ошибки</button>
+    </div>
+  </div>
+  <div class="card small muted">
+    Перед записью: зажигание ВКЛ, двигатель ВЫКЛ, напряжение > 12 В (лучше с зарядным).
+    VagOn делает резервную копию перед каждой записью и проверяет результат чтением.
+    Защиту SFD VagOn не обходит — защищённые блоки пишутся только во время легальной разблокировки.
+  </div>
+</section>
+
+<!-- ===================== MODULES ===================== -->
+<section id="tab-modules">
+  <h2>Блоки</h2>
+  <div class="card list" id="modList"><div class="muted">Подключитесь и нажмите «Найти блоки».</div></div>
+  <div class="card">
+    <label>Открыть блок по адресу</label>
+    <div class="row"><input id="modAddr" placeholder="например 09, 17, 5F" class="grow" style="width:auto" autocapitalize="characters">
+      <button id="btnOpenMod">Открыть</button></div>
+  </div>
+</section>
+
+<section id="tab-module">
+  <div class="row"><button class="ghost" data-go="modules">‹ Блоки</button></div>
+  <div id="modDetail"></div>
+</section>
+
+<!-- ===================== RECIPES ===================== -->
+<section id="tab-recipes">
+  <h2>Функции и настройки</h2>
+  <div class="row" style="margin-bottom:10px">
+    <button id="btnStates" class="grow">Проверить состояние в машине</button>
+  </div>
+  <div id="recipeList"></div>
+</section>
+
+<!-- ===================== LEARN ===================== -->
+<section id="tab-learn">
+  <h2>Обучение</h2>
+  <div class="card small">
+    Как добавить любую функцию, которой нет в списке, или «научить» рецепт каналу вашего блока:
+    <ol>
+      <li>Выберите блок и нажмите «Снимок до».</li>
+      <li>Измените <b>одну</b> настройку: в меню MMI, в ODIS (через VNCI) или OBDeleven.</li>
+      <li>Нажмите «Снимок после» — VagOn найдёт, что изменилось, и сохранит метку канала и/или рецепт.</li>
+    </ol>
+    Потом этот рецепт можно включать/выключать из VagOn на Mac и iPhone.
+  </div>
+  <div class="card">
+    <label>Блок</label>
+    <input id="lrnMod" placeholder="09 / 17 / 5F / 19 …" autocapitalize="characters">
+    <div class="row" style="margin-top:10px"><button class="primary grow" id="btnLrnStart">1. Снимок до</button></div>
+  </div>
+  <div class="card" id="lrnStep2" style="display:none">
+    <label>Имя канала (как в ODIS/VCDS), если меняли один канал</label>
+    <input id="lrnName" placeholder="Developer mode">
+    <div class="row">
+      <div class="grow"><label>Было</label><input id="lrnOld" placeholder="not activated / 7.6"></div>
+      <div class="grow"><label>Стало</label><input id="lrnNew" placeholder="activated / 12.1"></div>
+    </div>
+    <label>…и/или сохранить всё изменение как рецепт с названием</label>
+    <input id="lrnRecipe" placeholder="Беспроводной CarPlay (из ODIS)">
+    <div class="row" style="margin-top:10px"><button class="primary grow" id="btnLrnFinish">2. Снимок после</button></div>
+    <div id="simChangeBox" style="display:none;margin-top:12px" class="small">
+      <details><summary>Симулятор: изобразить изменение от ODIS</summary>
+        <div class="row"><input id="simDid" placeholder="DID, напр. 0901" style="width:auto" class="grow"><input id="simHex" placeholder="HEX, напр. 03" style="width:auto" class="grow"><button id="btnSimChange">Изменить</button></div>
+      </details>
+    </div>
+  </div>
+  <div class="card" id="lrnResult" style="display:none"></div>
+</section>
+
+<!-- ===================== MORE ===================== -->
+<section id="tab-more">
+  <h2>Ещё</h2>
+  <div class="seg" id="moreSeg" style="margin-bottom:12px">
+    <button data-more="dtc" class="active">Ошибки</button>
+    <button data-more="backups">Копии</button>
+    <button data-more="journal">Журнал</button>
+    <button data-more="log">Лог</button>
+  </div>
+  <div id="more-dtc">
+    <div class="row" style="margin-bottom:10px"><button class="primary grow" id="btnDtc">Прочитать ошибки всех блоков</button></div>
+    <div id="dtcList"></div>
+  </div>
+  <div id="more-backups" style="display:none"><div id="bkList" class="card list"></div></div>
+  <div id="more-journal" style="display:none"><div id="jrList" class="card"></div></div>
+  <div id="more-log" style="display:none"><div class="card"><div class="small muted" id="logPath"></div><div class="logbox" id="logBox"></div></div></div>
+</section>
+</main>
+
+<nav id="nav">
+  <button data-tab="connect" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 7l-4 4 4 4M17 7l4 4-4 4M14 4l-4 16"/></svg>Связь</button>
+  <button data-tab="modules"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>Блоки</button>
+  <button data-tab="recipes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3 6 6 .9-4.5 4.3 1 6.3L12 16.8 6.5 19.5l1-6.3L3 8.9 9 8z"/></svg>Функции</button>
+  <button data-tab="learn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>Обучение</button>
+  <button data-tab="more"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>Ещё</button>
+</nav>
+
+<div class="overlay" id="busy"><div class="modal" style="max-width:360px;text-align:center"><div class="spinner"></div><div id="busyMsg">…</div><div class="small muted" id="busySec"></div></div></div>
+<div class="overlay" id="dlg"><div class="modal" id="dlgBody"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const state = {adapter:"wifi", status:null, recipes:[], states:{}, current:null, codingEdit:null};
+
+const HINTS = {
+  wifi:"Wi-Fi ELM327: подключите телефон/Mac к сети адаптера (WiFi_OBDII, V-LINK…), адрес 192.168.0.10:35000.",
+  ble:"Bluetooth LE ELM327 (единственный вариант Bluetooth для iPhone). На Mac нужен pip3 install bleak.",
+  sim:"Встроенный симулятор Audi A3 8Y — попробовать всё без машины.",
+  custom:"Укажите адрес вручную."
+};
+
+function toast(msg, err){
+  const t=$("#toast"); t.textContent=msg; t.className="toast show"+(err?" err":"");
+  clearTimeout(toast._t); toast._t=setTimeout(()=>t.className="toast", err?7000:3500);
+}
+
+let pollTimer=null;
+function startBusyPoll(){
+  $("#busy").classList.add("show");
+  pollTimer=setInterval(async()=>{
+    try{const s=await (await fetch("/api/status")).json();
+      if(s.progress.busy){$("#busyMsg").textContent=s.progress.message; $("#busySec").textContent=s.progress.seconds+" с";}
+    }catch(e){}
+  },600);
+}
+function stopBusyPoll(){clearInterval(pollTimer); $("#busy").classList.remove("show");}
+
+async function api(path, body, opts={}){
+  const isPost = body !== undefined;
+  if(isPost && !opts.quiet){ $("#busyMsg").textContent="…"; $("#busySec").textContent=""; startBusyPoll(); }
+  try{
+    const r = await fetch(path, isPost ? {method:"POST", headers:{"Content-Type":"application/json","X-VagOn":"1"}, body:JSON.stringify(body)} : {});
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error || ("HTTP "+r.status));
+    return j;
+  } finally { if(isPost && !opts.quiet) stopBusyPoll(); }
+}
+
+function go(tab){
+  $$("section").forEach(s=>s.classList.toggle("active", s.id==="tab-"+tab));
+  $$("nav button").forEach(b=>b.classList.toggle("active", b.dataset.tab===tab || (tab==="module" && b.dataset.tab==="modules")));
+  window.scrollTo(0,0);
+  if(tab==="recipes" && !state.recipes.length) loadRecipes();
+  if(tab==="more") showMore(currentMore);
+}
+$$("nav button").forEach(b=>b.onclick=()=>go(b.dataset.tab));
+document.addEventListener("click", e=>{const g=e.target.closest("[data-go]"); if(g) go(g.dataset.go);});
+
+/* ---------------- connect ---------------- */
+function adapterUrl(){ return state.adapter==="custom" ? $("#adCustom").value.trim() : state.adapter; }
+$$("#adSeg button").forEach(b=>b.onclick=()=>{
+  state.adapter=b.dataset.ad; $$("#adSeg button").forEach(x=>x.classList.toggle("active",x===b));
+  $("#adCustomBox").style.display = state.adapter==="custom"?"block":"none"; $("#adHint").textContent=HINTS[state.adapter];
+});
+$("#adHint").textContent=HINTS.wifi;
+
+function renderStatus(s){
+  state.status=s;
+  const pill=$("#pill");
+  if(s.connected){
+    const v=s.info&&s.info.voltage!=null?` · ${s.info.voltage.toFixed(1)} В`:"";
+    pill.textContent=(s.sim?"симулятор":"подключено")+v; pill.classList.add("on");
+    $("#carCard").style.display="block";
+    const volt = s.info&&s.info.voltage!=null ? s.info.voltage : null;
+    $("#carInfo").innerHTML = `<div>Адаптер</div><div>${esc(s.info?s.info.description:"")}</div>
+      <div>Напряжение</div><div class="${volt!=null&&volt<12?'warn':''}">${volt!=null?volt.toFixed(1)+" В":"—"}${volt!=null&&volt<12?" — низкое, подключите зарядное":""}</div>
+      <div>VIN</div><div class="mono">${esc(s.vin||"—")}</div>`;
+    $("#simChangeBox").style.display = s.sim?"block":"none";
+  } else {
+    pill.textContent="не подключено"; pill.classList.remove("on"); $("#carCard").style.display="none";
+  }
+  if(s.modules_found && s.modules_found.length) renderModules(s.modules_found);
+}
+
+$("#btnConnect").onclick=async()=>{
+  try{ renderStatus(await api("/api/connect",{adapter:adapterUrl()})); toast("Подключено"); }
+  catch(e){ toast(e.message,true); }
+};
+$("#btnDisconnect").onclick=async()=>{ try{renderStatus(await api("/api/disconnect",{},{quiet:true}));}catch(e){toast(e.message,true);} };
+async function scan(dtc){
+  try{ const r=await api("/api/scan",{dtc}); renderModules(r.modules); go("modules"); toast(`Найдено блоков: ${r.modules.length}`); }
+  catch(e){ toast(e.message,true); }
+}
+$("#btnScan").onclick=()=>scan(false); $("#btnScanDtc").onclick=()=>scan(true);
+
+/* ---------------- modules ---------------- */
+function renderModules(mods){
+  $("#modList").innerHTML = mods.map(m=>{
+    const i=m.ident||{};
+    const d = m.dtc_count ? `<span class="badge bad">${m.dtc_count} ош.</span>` : "";
+    return `<div class="item" data-mod="${esc(m.address)}"><span class="addr">${esc(m.address)}</span>
+      <div class="grow"><div>${esc(m.name)}</div><div class="small muted">${esc(i.part_number||"")} · SW ${esc(i.sw_version||"")} · ${esc(i.odx_dataset||"")}</div></div>${d}</div>`;
+  }).join("") || '<div class="muted">Блоки не найдены.</div>';
+  $$("#modList .item").forEach(el=>el.onclick=()=>openModule(el.dataset.mod));
+}
+$("#btnOpenMod").onclick=()=>{const a=$("#modAddr").value.trim(); if(a) openModule(a);};
+
+async function openModule(addr){
+  try{
+    const m=await api("/api/module/"+encodeURIComponent(addr)); state.current=m; state.codingEdit=m.coding?m.coding.bytes.slice():null;
+    renderModule(); go("module");
+  }catch(e){ toast(e.message,true); }
+}
+function renderModule(){
+  const m=state.current, i=m.ident;
+  let h=`<h2><span class="addr">${esc(m.address)}</span> ${esc(m.name)}</h2>`;
+  if(m.protected) h+=`<div class="card warn">Защищённый блок — VagOn в него не пишет.</div>`;
+  h+=`<div class="card"><div class="kv">
+    <div>Номер детали</div><div class="mono">${esc(i.part_number)}</div>
+    <div>Версия ПО</div><div class="mono">${esc(i.sw_version)}</div>
+    <div>Система</div><div>${esc(i.system_name)}</div>
+    <div>ODX датасет</div><div class="mono">${esc(i.odx_dataset)}</div>
+    <div>CAN ID</div><div class="mono">${esc(m.can.join(" / "))}</div>
+    <div>Код мастерской</div><div class="mono">${esc(i.workshop_code||"—")}</div></div></div>`;
+  if(m.coding){
+    h+=`<h3>Длинное кодирование (${m.coding.bytes.length} байт)</h3><div class="card">
+      <div class="diff" id="codHex"></div>
+      <div class="small muted" style="margin:8px 0">Нажимайте на биты, чтобы подготовить изменение (Bit 7 … Bit 0). Запись — только после подтверждения.</div>
+      <div class="bits" id="codBits"></div>
+      <div class="row" style="margin-top:10px"><button class="primary grow" id="btnCodWrite">Записать изменения…</button><button id="btnCodReset">Сброс</button></div></div>`;
+  }
+  if(m.channels && m.channels.length){
+    h+=`<h3>Известные каналы адаптации</h3><div class="card list">`+m.channels.map((c,idx)=>`
+      <div class="item" data-ch="${idx}"><div class="grow"><div>${esc(c.name)}</div><div class="small muted">${esc(c.did)}</div></div>
+      <span class="badge">${esc(c.error?"ошибка":c.value)}</span></div>`).join("")+`</div>`;
+  }
+  h+=`<div class="row"><button id="btnModDtc" class="grow">Ошибки этого блока</button></div>`;
+  $("#modDetail").innerHTML=h;
+  if(m.coding) renderBits();
+  $$("#modDetail [data-ch]").forEach(el=>el.onclick=()=>editChannel(m.channels[+el.dataset.ch]));
+  const bd=$("#btnModDtc"); if(bd) bd.onclick=async()=>{ go("more"); showMore("dtc"); await readDtc([m.address]); };
+}
+function renderBits(){
+  const m=state.current, orig=m.coding.bytes, cur=state.codingEdit;
+  $("#codHex").textContent=cur.map(b=>b.toString(16).toUpperCase().padStart(2,"0")).join(" ");
+  let h='<div class="muted">Byte</div>'+[7,6,5,4,3,2,1,0].map(b=>`<div class="muted" style="text-align:center">${b}</div>`).join("");
+  cur.forEach((val,i)=>{
+    h+=`<div class="muted">${i} <span style="opacity:.6">${val.toString(16).toUpperCase().padStart(2,"0")}</span></div>`;
+    for(let b=7;b>=0;b--){
+      const set=(val>>b)&1, was=(orig[i]>>b)&1;
+      h+=`<div class="bit ${set?'set':''} ${set!==was?'changed':''}" data-byte="${i}" data-bit="${b}">${set}</div>`;
+    }
+  });
+  $("#codBits").innerHTML=h;
+  $$("#codBits .bit").forEach(el=>el.onclick=()=>{const i=+el.dataset.byte,b=+el.dataset.bit; state.codingEdit[i]^=(1<<b); renderBits();});
+  $("#btnCodReset").onclick=()=>{state.codingEdit=orig.slice(); renderBits();};
+  $("#btnCodWrite").onclick=writeCoding;
+}
+async function writeCoding(){
+  const m=state.current, orig=m.coding.bytes, cur=state.codingEdit, bits=[];
+  cur.forEach((v,i)=>{for(let b=0;b<8;b++){ if(((v^orig[i])>>b)&1) bits.push({byte:i,bit:b,value:(v>>b)&1}); }});
+  if(!bits.length){toast("Нет изменений");return;}
+  try{
+    const plan=await api(`/api/module/${m.address}/coding`,{bits,dry_run:true});
+    const ok=await confirmDlg("Записать кодирование?", `<div class="diff">было:  ${esc(plan.old)}\nбудет: ${esc(plan.new)}\n\n${esc(plan.diff.join("\n"))}</div>
+      <p class="small muted">Будет сделана резервная копия. Значение битов зависит от блока и версии ПО — меняйте только то, в чём уверены.</p>`, "Записать");
+    if(!ok) return;
+    const r=await api(`/api/module/${m.address}/coding`,{bits,dry_run:false});
+    showResults([r.result]); await openModule(m.address);
+  }catch(e){ errorDlg(e.message); }
+}
+async function editChannel(c){
+  if(c.error){toast(c.error,true);return;}
+  let input;
+  if(c.options && c.options.length){
+    input=`<select id="chVal">${c.options.map(o=>`<option ${o===c.value?"selected":""}>${esc(o)}</option>`).join("")}</select>`;
+  } else input=`<input id="chVal" value="${esc(c.value).replace(/[^\d.,-]/g,"")}" inputmode="decimal">`;
+  const ans=await confirmDlg(`Канал «${c.name}»`, `<div class="small muted">Сейчас: ${esc(c.value)} (${esc(c.did)})</div><label>Новое значение ${esc(c.unit||"")}</label>${input}`, "Дальше");
+  if(!ans) return;
+  const value=ans.value; const m=state.current;
+  try{
+    const p=await api(`/api/module/${m.address}/channel`,{name:c.name,value,dry_run:true});
+    const ok2=await confirmDlg("Записать адаптацию?", `<div class="diff">${esc(c.name)}: ${esc(p.old_value)} → ${esc(p.new_value)}\n${esc(p.did)}: ${esc(p.old)} → ${esc(p.new)}</div>`, "Записать");
+    if(!ok2) return;
+    const r=await api(`/api/module/${m.address}/channel`,{name:c.name,value,dry_run:false});
+    showResults([r.result]); await openModule(m.address);
+  }catch(e){ errorDlg(e.message); }
+}
+
+/* ---------------- recipes ---------------- */
+const CAT={cockpit:"Приборная панель",mmi:"Мультимедиа MMI",lights:"Свет",comfort:"Комфорт",assist:"Ассистенты",learned:"Мои (записанные)",other:"Другое"};
+const STATE_TXT={on:["вкл","on"],off:["выкл","off"],partial:["частично","partial"],"needs-learning":["нужно обучение","learn"],unavailable:["недоступно","bad"],error:["ошибка","bad"],unknown:["?","status"]};
+async function loadRecipes(){ try{ state.recipes=(await api("/api/recipes")).recipes; renderRecipes(); }catch(e){toast(e.message,true);} }
+function renderRecipes(){
+  const groups={};
+  state.recipes.forEach(r=>(groups[r.category]=groups[r.category]||[]).push(r));
+  let h="";
+  Object.keys(groups).forEach(cat=>{
+    h+=`<h3>${esc(CAT[cat]||cat)}</h3><div class="card list">`;
+    groups[cat].forEach(r=>{
+      const st=state.states[r.id]; const s=st?STATE_TXT[st]||[st,"status"]:null;
+      h+=`<div class="item" data-rid="${esc(r.id)}"><div class="grow"><div>${esc(r.title)}</div>
+        <div class="small muted">блок ${esc(r.modules.join(", "))} · ${esc(r.status)}${r.sfd==="yes"||r.sfd==="likely"?" · SFD":""}</div></div>
+        ${s?`<span class="badge ${s[1]}">${esc(s[0])}</span>`:""}</div>`;
+    });
+    h+="</div>";
+  });
+  $("#recipeList").innerHTML=h;
+  $$("#recipeList [data-rid]").forEach(el=>el.onclick=()=>openRecipe(el.dataset.rid));
+}
+$("#btnStates").onclick=async()=>{ try{ state.states=(await api("/api/recipes/states",{})).states; renderRecipes(); }catch(e){toast(e.message,true);} };
+
+async function openRecipe(id){
+  const r=state.recipes.find(x=>x.id===id);
+  let h=`<h2 style="margin-top:0">${esc(r.title)}</h2>`;
+  if(r.description) h+=`<p>${esc(r.description)}</p>`;
+  h+=`<p class="small"><span class="badge status">${esc(r.status_text)}</span></p>`;
+  h+=`<div class="diff">${esc(r.changes.join("\n"))}</div>`;
+  if(r.notes) h+=`<p class="small">${esc(r.notes)}</p>`;
+  if(r.sources&&r.sources.length) h+=`<details><summary>Источники</summary><div class="small mono">${r.sources.map(esc).join("<br>")}</div></details>`;
+  h+=`<div id="planBox"></div><div class="row" style="margin-top:12px">
+    <button class="primary grow" id="rOn">Включить…</button><button class="grow" id="rOff">Выключить…</button><button class="ghost" id="rClose">Закрыть</button></div>`;
+  openDlg(h);
+  $("#rClose").onclick=closeDlg;
+  $("#rOn").onclick=()=>planRecipe(r,"on"); $("#rOff").onclick=()=>planRecipe(r,"off");
+  if(state.status&&state.status.connected) planRecipe(r,"on",true);
+}
+function planHtml(p){
+  let h="";
+  const st={on:"включено",off:"выключено",partial:"частично",unknown:"неизвестно"}[p.state]||p.state;
+  h+=`<h3>Сейчас в машине: ${esc(st)}</h3>`;
+  p.modules.forEach(m=>{
+    h+=`<div class="small"><b>Блок ${esc(m.module)}</b>${m.login?` · логин ${m.login}`:""}${m.session!=="0x03"?` · сессия ${m.session}`:""}</div>`;
+    if(m.lines.length) h+=`<div class="diff">${esc(m.lines.join("\n"))}</div>`;
+    const w=Object.entries(m.writes); if(w.length) h+=`<div class="diff small">${w.map(([d,[o,n]])=>`${d}: ${o} → ${n}`).map(esc).join("\n")}</div>`;
+  });
+  p.warnings.forEach(w=>h+=`<p class="small warn">⚠ ${esc(w)}</p>`);
+  p.blockers.forEach(b=>h+=`<p class="small bad">✖ ${esc(b)}</p>`);
+  if(p.nothing_to_do) h+=`<p class="ok">Ничего менять не нужно.</p>`;
+  return h;
+}
+async function planRecipe(r, action, quietCheck){
+  try{
+    const p=await api(`/api/recipes/${encodeURIComponent(r.id)}/plan`,{action});
+    $("#planBox").innerHTML=planHtml(p);
+    if(quietCheck||p.blockers.length||p.nothing_to_do) return;
+    const ok=await confirmDlg(action==="on"?"Включить?":"Выключить?", planHtml(p)+`<p class="small muted">Перед записью будет сделана резервная копия, после — проверка чтением.</p>`, action==="on"?"Включить":"Выключить");
+    if(!ok) return;
+    const res=await api(`/api/recipes/${encodeURIComponent(r.id)}/apply`,{action,confirm:true});
+    showResults(res.results, action==="on"?res.after:null);
+    state.states[r.id]=action; renderRecipes();
+  }catch(e){ errorDlg(e.message); }
+}
+
+/* ---------------- learn ---------------- */
+$("#btnLrnStart").onclick=async()=>{
+  const mod=$("#lrnMod").value.trim(); if(!mod){toast("Укажите блок");return;}
+  try{ const r=await api("/api/learn/start",{module:mod}); $("#lrnStep2").style.display="block";
+    toast(`Снимок: ${r.count} идентификаторов. Теперь измените одну настройку.`); }catch(e){errorDlg(e.message);}
+};
+$("#btnLrnFinish").onclick=async()=>{
+  const body={module:$("#lrnMod").value.trim(),name:$("#lrnName").value.trim(),old:$("#lrnOld").value.trim(),new:$("#lrnNew").value.trim(),recipe_name:$("#lrnRecipe").value.trim()};
+  try{
+    const r=await api("/api/learn/finish",body);
+    let h=`<h3>Изменились</h3>`;
+    h+= r.changes.length? `<div class="diff">${r.changes.map(c=>`${c.did}: ${c.old} → ${c.new}`).map(esc).join("\n")}</div>` : `<p class="warn">Изменений не найдено.</p>`;
+    if(r.channel) h+=`<p class="ok">Метка «${esc(r.channel.name)}» сохранена (DID ${esc(r.channel.did)}).</p>`;
+    if(r.recipe) h+=`<p class="ok">Рецепт ${esc(r.recipe)} сохранён — он в разделе «Функции».</p>`;
+    if(r.warning) h+=`<p class="warn">${esc(r.warning)}</p>`;
+    $("#lrnResult").innerHTML=h; $("#lrnResult").style.display="block"; $("#lrnStep2").style.display="none";
+    state.recipes=[];
+  }catch(e){errorDlg(e.message);}
+};
+$("#btnSimChange").onclick=async()=>{
+  try{ await api("/api/sim/change",{module:$("#lrnMod").value.trim(),did:"0x"+$("#simDid").value.trim().replace(/^0x/i,""),hex:$("#simHex").value.trim()},{quiet:true}); toast("Симулятор: значение изменено"); }catch(e){toast(e.message,true);}
+};
+
+/* ---------------- more ---------------- */
+let currentMore="dtc";
+$$("#moreSeg button").forEach(b=>b.onclick=()=>showMore(b.dataset.more));
+function showMore(k){
+  currentMore=k; $$("#moreSeg button").forEach(b=>b.classList.toggle("active",b.dataset.more===k));
+  ["dtc","backups","journal","log"].forEach(x=>$("#more-"+x).style.display=x===k?"block":"none");
+  if(k==="backups") loadBackups(); if(k==="journal") loadJournal(); if(k==="log") loadLog();
+}
+async function readDtc(modules){
+  try{
+    const r=await api("/api/dtc",{modules});
+    $("#dtcList").innerHTML=r.modules.filter(m=>m.error||m.dtcs.length).map(m=>`<div class="card"><div class="row"><span class="addr">${esc(m.address)}</span><b class="grow">${esc(m.name)}</b>
+      ${m.dtcs&&m.dtcs.length?`<button class="danger" data-clr="${esc(m.address)}">Стереть</button>`:""}</div>
+      ${m.error?`<p class="small bad">${esc(m.error)}</p>`:m.dtcs.map(d=>`<div style="margin-top:8px"><span class="mono">${esc(d.code)}</span> <span class="small muted">(${esc(d.raw)}) ${esc(d.status_text)}</span></div>`).join("")}</div>`).join("")
+      || '<div class="card ok">Ошибок нет.</div>';
+    $$("#dtcList [data-clr]").forEach(b=>b.onclick=async()=>{
+      if(!await confirmDlg("Стереть ошибки?", `Блок ${esc(b.dataset.clr)}. Активные неисправности вернутся.`, "Стереть")) return;
+      try{ await api("/api/dtc/clear",{module:b.dataset.clr,confirm:true}); await readDtc(modules); }catch(e){errorDlg(e.message);}
+    });
+  }catch(e){toast(e.message,true);}
+}
+$("#btnDtc").onclick=()=>readDtc(null);
+async function loadBackups(){
+  try{ const r=await api("/api/backups");
+    $("#bkList").innerHTML=r.backups.map((b,i)=>`<div class="item" data-bk="${i}"><span class="addr">${esc(b.module)}</span><div class="grow"><div>${esc(b.reason)}</div><div class="small muted">${esc(b.created)}</div></div></div>`).join("")||'<div class="muted">Резервных копий пока нет.</div>';
+    $$("#bkList [data-bk]").forEach(el=>el.onclick=async()=>{
+      const b=r.backups[+el.dataset.bk];
+      try{ const p=await api("/api/restore",{path:b.path});
+        const w=Object.entries(p.result.written);
+        if(!w.length){toast("Блок уже в состоянии этой копии");return;}
+        if(!await confirmDlg("Восстановить?", `<div class="diff">${w.map(([d,[o,n]])=>`${d}: ${o} → ${n}`).map(esc).join("\n")}</div>`, "Восстановить")) return;
+        const res=await api("/api/restore",{path:b.path,confirm:true}); showResults([res.result]);
+      }catch(e){errorDlg(e.message);}
+    });
+  }catch(e){toast(e.message,true);}
+}
+async function loadJournal(){
+  try{ const r=await api("/api/journal");
+    $("#jrList").innerHTML=r.entries.map(e=>`<div style="padding:8px 0;border-bottom:1px solid var(--line)"><div class="row"><span class="addr">${esc(e.module)}</span><span class="grow">${esc(e.reason)}</span><span class="badge ${e.status==="ok"?"on":"bad"}">${esc(e.status)}</span></div>
+      <div class="small muted">${esc(e.time)}</div>${Object.entries(e.changes||{}).map(([d,[o,n]])=>`<div class="mono">${esc(d)}: ${esc(o)} → ${esc(n)}</div>`).join("")}${e.error?`<div class="small bad">${esc(e.error)}</div>`:""}</div>`).join("")||'<div class="muted">Записей пока нет.</div>';
+  }catch(e){toast(e.message,true);}
+}
+async function loadLog(){ try{ const r=await api("/api/log"); $("#logPath").textContent=r.path||"лог не ведётся"; $("#logBox").textContent=r.lines.join("\n"); }catch(e){toast(e.message,true);} }
+
+/* ---------------- dialogs ---------------- */
+function openDlg(html){ $("#dlgBody").innerHTML=html; $("#dlg").classList.add("show"); }
+function closeDlg(){ $("#dlg").classList.remove("show"); }
+/* resolves to null (cancel) or {value} — value of #chVal if the dialog has one */
+function confirmDlg(title, html, okText){
+  return new Promise(res=>{
+    openDlg(`<h3 style="margin-top:0">${esc(title)}</h3>${html}<div class="row" style="margin-top:14px"><button class="primary grow" id="cOk">${esc(okText||"OK")}</button><button class="ghost" id="cNo">Отмена</button></div>`);
+    $("#cOk").onclick=()=>{const el=$("#chVal"); const value=el?el.value:null; closeDlg(); res({value});};
+    $("#cNo").onclick=()=>{closeDlg(); res(null);};
+  });
+}
+function errorDlg(msg){
+  openDlg(`<h3 style="margin-top:0" class="bad">Не получилось</h3><div class="diff">${esc(msg)}</div><div class="row" style="margin-top:12px"><button class="grow" id="eOk">Понятно</button></div>`);
+  $("#eOk").onclick=closeDlg;
+}
+function showResults(results, after){
+  let h=`<h3 style="margin-top:0" class="ok">Готово</h3>`;
+  (results||[]).forEach(r=>{
+    h+=`<div class="small"><b>Блок ${esc(r.module)}</b> ${r.verified?'<span class="ok">✔ проверено чтением</span>':''}</div>`;
+    const w=Object.entries(r.written||{}); if(w.length) h+=`<div class="diff small">${w.map(([d,[o,n]])=>`${d}: ${o} → ${n}`).map(esc).join("\n")}</div>`;
+    (r.notes||[]).forEach(n=>h+=`<div class="small muted">• ${esc(n)}</div>`);
+    if(r.backup) h+=`<div class="small muted">Резервная копия: <span class="mono">${esc(r.backup)}</span></div>`;
+  });
+  if(after) h+=`<p><b>Дальше:</b> ${esc(after)}</p>`;
+  h+=`<div class="row" style="margin-top:12px"><button class="grow" id="rsOk">OK</button></div>`;
+  openDlg(h); $("#rsOk").onclick=closeDlg;
+}
+
+/* ---------------- boot ---------------- */
+(async()=>{ try{ const s=await api("/api/status"); renderStatus(s);
+  if(s.adapter){ const known=["wifi","ble","sim"]; const ad=known.includes(s.adapter)?s.adapter:"custom";
+    $$("#adSeg button").forEach(b=>{ if(b.dataset.ad===ad) b.click(); }); if(ad==="custom") $("#adCustom").value=s.adapter; }
+ }catch(e){} })();
+</script>
+</body>
+</html>

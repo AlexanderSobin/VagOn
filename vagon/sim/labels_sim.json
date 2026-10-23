@@ -1,0 +1,47 @@
+{
+  "vagon_labels": 1,
+  "_comment": "Channel definitions of the SIMULATED car only (datasets contain 'SIM'). Loaded only with --adapter sim.",
+  "datasets": {
+    "EV_MUH4SIM_AU38X": {
+      "module": "5F",
+      "channels": [
+        {"name": "Apple_DIO", "did": "0x0960", "byte": 0, "bit": 0, "bits": 1, "values": {"not activated": 0, "activated": 1}},
+        {"name": "Apple_DIO_Wireless", "did": "0x0960", "byte": 0, "bit": 1, "bits": 1, "values": {"not activated": 0, "activated": 1}},
+        {"name": "Google_GAL_Wireless", "did": "0x0960", "byte": 0, "bit": 2, "bits": 1, "values": {"not activated": 0, "activated": 1}},
+        {"name": "5_ghz_wlan", "did": "0x0961", "byte": 0, "bit": 0, "bits": 1, "values": {"off": 0, "on": 1}},
+        {"name": "Wifi_client_mode_5GHz", "did": "0x0963", "byte": 0, "bit": 0, "bits": 1, "values": {"off": 0, "on": 1}},
+        {"name": "WIFI_Hotspot_5GHz", "did": "0x0963", "byte": 0, "bit": 1, "bits": 1, "values": {"off": 0, "on": 1}},
+        {"name": "WiFi_Client_HMI", "did": "0x0963", "byte": 0, "bit": 2, "bits": 1, "values": {"off": 0, "on": 1}},
+        {"name": "Developer mode", "did": "0x0970", "byte": 0, "bit": 0, "bits": 1, "values": {"not activated": 0, "activated": 1}, "session": "0x4F"},
+        {"name": "menu_display_road_sign_identification", "did": "0x0971", "byte": 0, "bit": 0, "bits": 1, "values": {"not activated": 0, "activated": 1}},
+        {"name": "menu_display_Start_Stop_reasons", "did": "0x0971", "byte": 0, "bit": 1, "bits": 1, "values": {"not activated": 0, "activated": 1}},
+        {"name": "menu_display_weariness_recognition", "did": "0x0971", "byte": 0, "bit": 2, "bits": 1, "values": {"not activated": 0, "activated": 1}},
+        {"name": "menu_display_BCmE", "did": "0x0971", "byte": 0, "bit": 3, "bits": 1, "values": {"not activated": 0, "activated": 1}},
+        {"name": "menu_display_user_eco_rating", "did": "0x0971", "byte": 0, "bit": 4, "bits": 1, "values": {"not activated": 0, "activated": 1}},
+        {"name": "traffic_sign_recognition_0x21", "did": "0x0972", "byte": 0, "bit": 0, "bits": 1, "values": {"not activated": 0, "activated": 1}}
+      ]
+    },
+    "EV_BCMSIM_AU38X": {
+      "module": "09",
+      "channels": [
+        {"name": "Intelligente Heckleuchte-Verbau", "did": "0x0902", "byte": 0, "bit": 0, "bits": 4, "values": {"0": 0, "1": 1, "3": 3, "5": 5}},
+        {"name": "LTM_BGL_Wegabhängig", "did": "0x0904", "byte": 0, "bit": 0, "bits": 1, "values": {"not active": 0, "active": 1}},
+        {"name": "LTM_BGL_Geschwindigkeitsabhängig", "did": "0x0904", "byte": 0, "bit": 1, "bits": 1, "values": {"not active": 0, "active": 1}},
+        {"name": "LTM_Global_OFF_Wegabhängig", "did": "0x0904", "byte": 0, "bit": 2, "bits": 1, "values": {"not active": 0, "active": 1}},
+        {"name": "LTM_Global_OFF_Geschwindigkeitsabhängig", "did": "0x0904", "byte": 0, "bit": 3, "bits": 1, "values": {"not active": 0, "active": 1}}
+      ]
+    },
+    "EV_GWSIM_AU38X": {
+      "module": "19",
+      "channels": [
+        {"name": "Start_stop_voltage_limit", "did": "0x0905", "byte": 0, "bit": 0, "bits": 8, "scale": 0.1, "offset": 0, "unit": "V"}
+      ]
+    },
+    "EV_KOMBISIM_AU38X": {
+      "module": "17",
+      "channels": [
+        {"name": "Laptimer", "did": "0x0980", "byte": 0, "bit": 0, "bits": 1, "values": {"not activated": 0, "activated": 1}}
+      ]
+    }
+  }
+}

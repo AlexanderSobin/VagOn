@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vagon"
+version = "0.1.0"
+description = "VAG (Audi/VW/Skoda/Seat/Cupra) coding & adaptations over ELM327 — macOS and iPhone"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Alexander Sobin" }]
+dependencies = []
+
+[project.optional-dependencies]
+ble = ["bleak>=0.21"]
+serial = ["pyserial>=3.5"]
+all = ["bleak>=0.21", "pyserial>=3.5"]
+dev = ["pytest>=7"]
+
+[project.scripts]
+vagon = "vagon.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["vagon*"]
+
+[tool.setuptools.package-data]
+vagon = ["data/recipes/*.json", "data/labels/*.json", "sim/*.json", "web/static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
