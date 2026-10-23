@@ -81,6 +81,8 @@ class App:
                 self.disconnect()
                 self.adapter_url = adapter
                 self.labels = self._load_labels()
+            if self.vehicle is not None and getattr(self.transport, "_broken", None):
+                self.disconnect()       # adapter state unknown → reconnect instead of reusing it
             if self.vehicle is not None:
                 return self.vehicle
             path = None

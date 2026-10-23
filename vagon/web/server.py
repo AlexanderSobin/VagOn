@@ -104,6 +104,9 @@ class Api:
 
         def go():
             from ..vag.check import adapter_check, format_check
+            # an explicit "connect" always starts fresh (a dropped BLE link leaves a dead transport);
+            # done under the operation lock so it can never cut into a running write
+            self.app.disconnect()
             self.app.connect(adapter)
             v = self.app.vehicle
             try:
@@ -117,13 +120,11 @@ class Api:
             except VagOnError as e:
                 st["check"] = {"ok": False, "lines": [str(e)]}
             return st
-        if self.app.vehicle is not None and adapter and adapter != self.app.adapter_url:
-            self.app.disconnect()
         return self.run("подключение к адаптеру…", go)
 
     def disconnect(self, _body) -> dict:
-        self.app.disconnect()
-        return self.status({})
+        # refused while another operation (e.g. a write) is running
+        return self.run("отключение…", lambda: (self.app.disconnect(), self.status({}))[1])
 
     def scan(self, body) -> dict:
         v = self._vehicle()
