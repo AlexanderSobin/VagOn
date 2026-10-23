@@ -303,7 +303,8 @@ class Api:
         v = self._vehicle()
 
         def go():
-            mods = body.get("modules") or [e.module.addr_hex for e in (v.found or v.scan(progress=self.progress))]
+            mods = body.get("modules") or [e.module.addr_hex for e in (v.found or v.scan(progress=self.progress))
+                                             if e.found]
             res = []
             for m in mods:
                 s = v.module(m)
@@ -345,18 +346,18 @@ class Api:
 
     def learn_start(self, body) -> dict:
         v = self._vehicle()
-        from ..vag.learn import LearnSession, load_known_dids, parse_ranges, sweep
+        from ..vag.learn import LearnSession, parse_ranges, sweep
 
         def go():
             s = v.module(body["module"])
-            ident = s.ident(refresh=True)
+            s.ident(refresh=True)
             vin = v.vin or v.read_vin() or "UNKNOWN"
-            data = load_known_dids(vin, s.module.addr_hex, ident.odx_dataset)
-            if not data["dids"]:
-                def prog(i, n, found):
-                    if i % 32 == 0 or i == n:
-                        self.progress(f"поиск идентификаторов {i}/{n}, найдено {found}")
-                data = sweep(s, parse_ranges(body.get("ranges")), vin=vin, progress=prog)
+
+            def prog(i, n, found):
+                if i % 32 == 0 or i == n:
+                    self.progress(f"поиск идентификаторов {i}/{n}, найдено {found}")
+            # resumes an interrupted discovery; returns at once when it is complete
+            data = sweep(s, parse_ranges(body.get("ranges")), vin=vin, progress=prog)
             dids = [int(k, 16) for k in data["dids"]]
             self.progress("снимок значений…")
             ls = LearnSession.start(s, dids, vin)

@@ -200,6 +200,8 @@ def cmd_coding(app: App, a) -> int:
         return 0
     new = lc.copy()
     if a.action == "set":
+        if len(a.args) != 3 or a.args[2].lower() not in ("on", "off", "1", "0", "вкл", "выкл", "true", "false"):
+            raise SafetyError("формат: coding МОД set БАЙТ БИТ on|off")
         new.set_bit(int(a.args[0]), int(a.args[1]), a.args[2].lower() in ("on", "1", "вкл", "true"))
     elif a.action == "write":
         new = LongCoding(parse_hex(" ".join(a.args)))
@@ -267,7 +269,7 @@ def cmd_did(app: App, a) -> int:
 
 def cmd_dtc(app: App, a) -> int:
     v = app.connect()
-    mods = a.modules or [e.module.addr_hex for e in (v.found or v.scan())]
+    mods = a.modules or [e.module.addr_hex for e in (v.found or v.scan()) if e.found]
     total = 0
     for m in mods:
         s = v.module(m)
@@ -393,16 +395,19 @@ def _known_dids(v, s, ranges_text):
     from .vag.learn import load_known_dids, parse_ranges, sweep
     ident = s.ident(refresh=True)
     vin = v.vin or v.read_vin() or "UNKNOWN"
-    data = load_known_dids(vin, s.module.addr_hex, ident.odx_dataset)
-    if not data["dids"] or ranges_text:
-        out("Сначала узнаю, какие идентификаторы есть у блока (однократно, только чтение)…")
-        last = [0.0]
+    ranges = parse_ranges(ranges_text)
+    done = set(load_known_dids(vin, s.module.addr_hex, ident.odx_dataset).get("done", []))
+    remaining = sum(1 for lo, hi in ranges for d in range(lo, hi + 1) if d not in done)
+    if remaining:
+        out(f"Узнаю, какие идентификаторы есть у блока: {remaining} шт. (однократно, только чтение, "
+            "прерванный опрос продолжится с места остановки)…")
+    last = [0.0]
 
-        def prog(i, n, found):
-            if time.monotonic() - last[0] > 3 or i == n:
-                last[0] = time.monotonic()
-                out(f"  {i}/{n}, найдено {found}")
-        data = sweep(s, parse_ranges(ranges_text), vin=vin, progress=prog)
+    def prog(i, n, found):
+        if time.monotonic() - last[0] > 3 or i == n:
+            last[0] = time.monotonic()
+            out(f"  {i}/{n}, найдено {found}")
+    data = sweep(s, ranges, vin=vin, progress=prog)     # resumes; no-op when complete
     return [int(k, 16) for k in data["dids"]]
 
 

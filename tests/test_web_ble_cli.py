@@ -199,3 +199,17 @@ def test_web_raw_did_and_backup_all(web):
     assert code == 200 and res["result"]["verified"]
     code, b = call(web, "/api/backup_all", {})
     assert code == 200 and len(b["saved"]) >= 10
+
+
+def test_cli_dtc_only_found_modules(capsys, monkeypatch):
+    from vagon.vag import vehicle as veh
+    calls = []
+    orig = veh.ModuleSession.read_dtcs
+
+    def spy(self):
+        calls.append(self.module.addr_hex)
+        return orig(self)
+    monkeypatch.setattr(veh.ModuleSession, "read_dtcs", spy)
+    assert main(["-a", "sim://?fresh=1", "--no-trace", "dtc"]) == 0
+    assert "B1A0B 00" in capsys.readouterr().out
+    assert "82" not in calls and len(calls) == 15        # HUD isn't in this car
