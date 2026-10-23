@@ -25,7 +25,9 @@ from ..paths import sub_dir
 from .labels import Channel
 from .vehicle import ModuleSession
 
-DEFAULT_RANGES = [(0x0000, 0x0FFF), (0x2000, 0x3FFF)]
+# Where VAG keeps adaptation DIDs is not publicly documented, so the default discovery covers
+# 0x0000-0x3FFF (≈16 k reads, one-off and resumable); 'full' covers everything but F2xx-FCxx.
+DEFAULT_RANGES = [(0x0000, 0x3FFF)]
 FULL_RANGES = [(0x0000, 0xEFFF), (0xF100, 0xF1FF), (0xFD00, 0xFEFF)]
 
 
@@ -80,6 +82,20 @@ def sweep(sess: ModuleSession, ranges: list[tuple[int, int]], *, vin: str,
     data = load_known_dids(vin, sess.module.addr_hex, ident.odx_dataset)
     done = set(data.get("done", []))
     todo = [d for lo, hi in ranges for d in range(lo, hi + 1) if d not in done]
+    fast = getattr(sess.vehicle.transport, "fast_timeouts", None)
+    if fast and todo:
+        fast(True)       # absent DIDs answer NRC 0x31 quickly; don't wait ~1 s after each answer
+    try:
+        _sweep_loop(sess, todo, done, data, vin, ident, progress, should_stop)
+    finally:
+        if fast and todo:
+            fast(False)
+    data["done"] = sorted(done)
+    save_known_dids(vin, sess.module.addr_hex, ident.odx_dataset, data)
+    return data
+
+
+def _sweep_loop(sess, todo, done, data, vin, ident, progress, should_stop) -> None:
     total = len(todo)
     for i, did in enumerate(todo):
         if should_stop and should_stop():
@@ -102,9 +118,6 @@ def sweep(sess: ModuleSession, ranges: list[tuple[int, int]], *, vin: str,
             save_known_dids(vin, sess.module.addr_hex, ident.odx_dataset, data)
         if progress:
             progress(i + 1, total, len(data["dids"]))
-    data["done"] = sorted(done)
-    save_known_dids(vin, sess.module.addr_hex, ident.odx_dataset, data)
-    return data
 
 
 def snapshot(sess: ModuleSession, dids: list[int]) -> dict[int, bytes]:
