@@ -56,6 +56,9 @@ def adapter_check(vehicle) -> dict:
         break
     if not res["bus"]:
         res["notes"].append("ни шлюз (19), ни блоки 09/17 не ответили — включите зажигание, проверьте адаптер")
+    if res["multiframe"] and not getattr(t, "_fc_ok", True):
+        res["notes"].append("адаптер не поддерживает ATFCSM1 — VagOn сам отвечает Flow Control "
+                            "(работает, но чтение длинных ответов медленнее)")
     res["ok"] = res["bus"] and res["multiframe"] and res["coding_read"]
     return res
 

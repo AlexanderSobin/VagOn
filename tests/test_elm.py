@@ -87,13 +87,23 @@ def test_stpx_path(vagon_home):
     assert any(ln.upper().startswith("STPX") for ln in sim.lines_seen)
 
 
-def test_clone_without_fcsm(vagon_home):
+def test_clone_without_fcsm_uses_manual_flow_control(vagon_home):
     sim = make_sim_elm(bad_fcsm=True)
     elm = Elm327(SimLink(sim)).connect()
     u = client(elm)
-    assert u.read_did(0xF189) == b"0213"             # single frame still fine
-    with pytest.raises(IsoTpError, match="ATFCSM1"):
-        u.read_did(0x0600)
+    assert u.read_did(0xF189) == b"0213"             # single frame
+    assert u.read_did(0x0600) == ecu(sim, 0x09).dids[0x0600]   # multi-frame via our own FC
+    assert not sim.cfc, "adapter auto-FC must be off (it would address another module)"
+    fcs = [(cid, f) for cid, f in sim.frames_sent if f[0] >> 4 == 3]
+    assert fcs and all(cid == 0x70E for cid, _ in fcs)
+    # and a full coding write works on such a clone too
+    u.diagnostic_session(3)
+    seed = u.request_seed(3)
+    u.send_key(3, ((int.from_bytes(seed, "big") + 31347) & 0xFFFFFFFF).to_bytes(4, "big"))
+    u.write_did(0xF199, b"\x26\x10\x23")
+    u.write_did(0xF198, bytes(6))
+    u.write_did(0x0600, bytes(30))
+    assert ecu(sim, 0x09).dids[0x0600] == bytes(30)
 
 
 def test_echo_glued_clone(vagon_home):

@@ -69,6 +69,7 @@ class Elm327(Transport):
         self._cra_supported = True
         self._fc_ok = True
         self._fc_warned = False
+        self._cfc_off = False
         self._broken: str | None = None
         self._connected = False
 
@@ -247,7 +248,11 @@ class Elm327(Transport):
                 break
         if not fc_ok and not self._fc_warned:
             self._fc_warned = True
-            log.warning("адаптер не поддерживает ATFCSM1: длинные ответы блоков VAG могут не читаться")
+            log.warning("адаптер не поддерживает ATFCSM1: VagOn сам отвечает Flow Control (медленнее)")
+        if not fc_ok and not self._cfc_off:
+            # the adapter's own FC would go to (response id - 8) — another module; switch it off
+            # and answer First Frames ourselves (see _request_manual_fc)
+            self._cfc_off = self._cmd("ATCFC0", allow_unknown=True) != ["?"]
         self._fc_ok = fc_ok
         self._tx_id, self._rx_id = tx_id, rx_id
 
@@ -338,17 +343,51 @@ class Elm327(Transport):
             if msg is not None:
                 out.append(msg)
         if r.in_progress:
-            if not self._fc_ok:
-                raise IsoTpError("длинный ответ оборван: адаптер не умеет слать Flow Control на "
-                                 "нужный ID (нет ATFCSM1). Нужен ELM327 получше (v1.4b+/STN).")
             raise IsoTpError("ответ блока оборван (не все кадры дошли до адаптера)")
         return out
+
+    @staticmethod
+    def _needs_fc(frames: list[bytes]) -> bool:
+        """True if the frames end inside a multi-frame message (First Frame not completed)."""
+        r = isotp.Reassembler()
+        for f in frames:
+            if isotp.frame_type(f) != isotp.FC:
+                r.feed(f)
+        return r.in_progress
+
+    def _request_manual_fc(self, rx_id: int, payload: bytes, timeout: float) -> list[bytes]:
+        """Single-frame request on an adapter without ATFCSM1: answer the module's First
+        Frame with our own Flow Control frame (sent raw to the module's request id).
+
+        The module waits up to N_Bs (~1 s) for flow control, so the adapter may only
+        listen briefly after the First Frame (ATST32 = 200 ms) before printing '>'.
+        """
+        prev_adaptive = self._adaptive
+        try:
+            self.set_patient(True)
+            self._set_st(self.FC_LISTEN_ST)
+            self._set_caf(True)
+            frames = self._parse_frames(self._raw_request(payload.hex().upper(), timeout), rx_id)
+            if self._needs_fc(frames):
+                self._set_caf(False)
+                fc = isotp.flow_control(isotp.FC_CTS, 0, self.st_min_ms, pad=isotp.PAD)
+                frames += self._parse_frames(self._raw_request(fc.hex().upper(), timeout), rx_id)
+            return self._reassemble(frames)
+        finally:
+            try:
+                self._set_caf(True)
+                self._set_st(0xFF)
+                self.set_patient(not prev_adaptive)
+            except TransportError:
+                pass
 
     def request(self, tx_id: int, rx_id: int, payload: bytes, timeout: float) -> list[bytes]:
         if not self._connected:
             raise TransportError("адаптер не подключён")
         self._set_target(tx_id, rx_id)
         if len(payload) <= 7:
+            if not self._fc_ok:
+                return self._request_manual_fc(rx_id, payload, timeout)
             self._set_caf(True)
             lines = self._raw_request(payload.hex().upper(), timeout)
             return self._reassemble(self._parse_frames(lines, rx_id))
