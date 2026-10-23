@@ -79,11 +79,14 @@ vagon web --open                           # веб‑интерфейс в бр
 ## Как пользоваться (порядок для первого раза)
 
 1. Зажигание **ВКЛ**, двигатель **ВЫКЛ**, лучше с зарядным/бустером (запись при < 12 В — плохая идея).
-2. `vagon info` — проверка адаптера, напряжения, VIN.
-3. `vagon scan --dtc` — список блоков и ошибок. Сохраните вывод.
-4. `vagon recipes --check` — какие функции уже включены, какие доступны, каким нужно обучение.
-5. `vagon recipe check <id>` → смотрите план → `vagon recipe on <id>`.
-6. Что-то не так — `vagon recipe off <id>` или `vagon backups` → `vagon restore <файл>`.
+2. `vagon info` — проверка адаптера (подходит ли он для VAG), напряжения, VIN.
+3. `vagon scan --dtc` — список блоков и ошибок.
+4. `vagon backup-all` — копия кодирования всех блоков до любых изменений.
+5. `vagon recipes --check` — какие функции уже включены, какие доступны, каким нужно обучение.
+6. `vagon recipe check <id>` → смотрите план → `vagon recipe on <id>`.
+7. Что-то не так — `vagon recipe off <id>` или `vagon backups` → `vagon restore <файл>`.
+
+**Пошагово для 8Y** (CarPlay, анимация фонарей, Coming home, стрелки): [docs/GUIDE_8Y.md](docs/GUIDE_8Y.md).
 
 Все команды: `vagon --help`, `vagon <команда> --help`. Справочник — [docs/COMMANDS.md](docs/COMMANDS.md).
 

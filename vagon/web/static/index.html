@@ -57,7 +57,7 @@ nav svg{width:22px;height:22px}
 .modal{background:var(--panel);border:1px solid var(--line);border-radius:18px;max-width:640px;width:100%;max-height:85vh;overflow:auto;padding:18px;box-shadow:var(--shadow)}
 .spinner{width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 12px}
 @keyframes spin{to{transform:rotate(360deg)}}
-.toast{pointer-events:none;position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom));background:var(--panel2);border:1px solid var(--line);padding:10px 14px;border-radius:12px;z-index:30;box-shadow:var(--shadow);max-width:92vw;display:none;white-space:pre-wrap}
+.toast{pointer-events:none;position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top) + 64px);background:var(--panel2);border:1px solid var(--line);padding:10px 14px;border-radius:12px;z-index:30;box-shadow:var(--shadow);max-width:92vw;display:none;white-space:pre-wrap}
 .toast.show{display:block}.toast.err{border-color:var(--bad)}
 .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:14px}.kv div:nth-child(odd){color:var(--muted)}
 .seg{display:flex;background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:3px;gap:3px}

@@ -27,7 +27,8 @@
 | `learn finish МОД --recipe-name "Название" [--login N] [--session S]` | сохранить изменение как рецепт |
 | `labels list МОД` | известные каналы адаптации блока с текущими значениями |
 | `labels add МОД --name … --did … --byte --bit --bits --values "a=0,b=1"` | добавить метку вручную |
-| `labels import-odx --file ФАЙЛ.pdx [--module МОД]` | импорт меток из ODX/PDX (нужен `pip install odxtools`) |
+| `labels import-odx [МОД] --file ФАЙЛ.pdx` | импорт меток из ODX/PDX (нужен `pip install odxtools`) |
+| `backup-all` | копия идентификации и кодирования всех блоков (только чтение) |
 | `backups [МОД]` | резервные копии |
 | `restore ФАЙЛ` | восстановить из копии |
 | `journal` | журнал записей |

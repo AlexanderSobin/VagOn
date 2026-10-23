@@ -339,6 +339,39 @@ def cmd_backups(app: App, a) -> int:
     return 0
 
 
+def cmd_backup_all(app: App, a) -> int:
+    """Identification + long coding (+ known adaptation DIDs) of every module, read-only."""
+    from .vag.learn import IGNORED_DIDS, load_known_dids
+    v = app.connect()
+    found = [e for e in (v.found or v.scan(progress=None if a.quiet else progress)) if e.found]
+    vin = v.vin or v.read_vin() or "UNKNOWN"
+    saved = 0
+    for e in found:
+        s = v.module(e.module.addr_hex)
+        try:
+            ident = s.ident(refresh=True)
+        except (TimeoutError_, NegativeResponse) as err:
+            out(f"  {e.module.label()}: пропуск ({err})")
+            continue
+        dids = {}
+        if ident.coding:
+            dids["0x0600"] = ident.coding
+        known = load_known_dids(vin, s.module.addr_hex, ident.odx_dataset)
+        for k in known.get("dids", {}):
+            if int(k, 16) in IGNORED_DIDS:
+                continue  # identification / workshop data is not restored
+            try:
+                dids[k] = s.read_did(int(k, 16)).hex().upper()
+            except (TimeoutError_, NegativeResponse):
+                continue
+        b = app.store.save_backup(vin=vin, module=s.module.addr_hex, ident=ident.to_dict(), coding=ident.coding,
+                                  dids=dids, reason="full backup")
+        saved += 1
+        out(f"  {e.module.label():45s} {len(dids):3d} знач. → {os.path.basename(b.path)}")
+    out(f"Сохранено блоков: {saved}. Папка: {os.path.join(data_dir(), 'backups')}")
+    return 0
+
+
 def cmd_restore(app: App, a) -> int:
     from .vag.store import Store
     b = Store.load_backup(a.file)
@@ -581,6 +614,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     sp = add("backups", cmd_backups, "резервные копии")
     sp.add_argument("module", nargs="?")
+    sp = add("backup-all", cmd_backup_all, "резервная копия кодирования всех блоков (только чтение)")
+    sp.add_argument("-q", "--quiet", action="store_true")
     sp = add("restore", cmd_restore, "восстановить из резервной копии")
     sp.add_argument("file")
     sp.add_argument("--login", type=int)

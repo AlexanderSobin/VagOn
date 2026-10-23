@@ -5,201 +5,520 @@
     {
       "id": "cockpit.needle_sweep",
       "category": "cockpit",
-      "title": {"ru": "Приветствие стрелками (Needle sweep / Staging)", "en": "Needle sweep (staging)"},
-      "description": {"ru": "Стрелки/шкалы пробегают до максимума при включении зажигания.", "en": "Gauges sweep to max when the ignition is switched on."},
+      "title": {
+        "ru": "Приветствие стрелками (Needle sweep / Staging)",
+        "en": "Needle sweep (staging)"
+      },
+      "description": {
+        "ru": "Стрелки/шкалы пробегают до максимума при включении зажигания.",
+        "en": "Gauges sweep to max when the ignition is switched on."
+      },
       "module": "17",
       "status": "community-mqb",
       "sfd": "likely",
-      "cars": ["8V", "Golf 7", "8Y?"],
-      "changes": [
-        {"kind": "coding_bit", "byte": 1, "bit": 0, "on": 1, "off": 0}
+      "cars": [
+        "8V",
+        "Golf 7",
+        "8Y?"
       ],
-      "notes": {"ru": "Byte 1 Bit 0 «Gauge test / Staging active» — классическое место на MQB. Владельцы 8Y/Golf 8 с цифровой панелью часто сообщают, что видимого эффекта нет. Безвредно: откат одной кнопкой.", "en": "Classic MQB location. Often no visible effect on MQB-Evo digital clusters."},
-      "after": {"ru": "Выключите и включите зажигание.", "en": "Cycle the ignition."},
-      "sources": ["https://vagupdate.com/blog/general/enable-staging", "https://vwcoding.ru/en/MQB/AID/", "https://github.com/xodq/clusterleg"]
+      "changes": [
+        {
+          "kind": "coding_bit",
+          "byte": 1,
+          "bit": 0,
+          "on": 1,
+          "off": 0
+        }
+      ],
+      "notes": {
+        "ru": "Byte 1 Bit 0 «Gauge test / Staging active» — классическое место на MQB. Владельцы 8Y/Golf 8 с цифровой панелью часто сообщают, что видимого эффекта нет. Безвредно: откат одной кнопкой.",
+        "en": "Classic MQB location. Often no visible effect on MQB-Evo digital clusters."
+      },
+      "after": {
+        "ru": "Выключите и включите зажигание.",
+        "en": "Cycle the ignition."
+      },
+      "sources": [
+        "https://vagupdate.com/blog/general/enable-staging",
+        "https://vwcoding.ru/en/MQB/AID/",
+        "https://github.com/xodq/clusterleg"
+      ]
     },
     {
       "id": "cockpit.traffic_sign_display",
       "category": "cockpit",
-      "title": {"ru": "Дорожные знаки в приборной панели", "en": "Traffic signs in the cluster"},
-      "description": {"ru": "Признак «распознавание знаков установлено» в приборке (нужна фронтальная камера с этой функцией).", "en": "Cluster: traffic sign recognition installed (needs a camera with TSR)."},
+      "title": {
+        "ru": "Дорожные знаки в приборной панели",
+        "en": "Traffic signs in the cluster"
+      },
+      "description": {
+        "ru": "Признак «распознавание знаков установлено» в приборке (нужна фронтальная камера с этой функцией).",
+        "en": "Cluster: traffic sign recognition installed (needs a camera with TSR)."
+      },
       "module": "17",
       "status": "community-mqb",
       "sfd": "likely",
-      "cars": ["Golf 7", "A4 B9", "8V"],
-      "changes": [
-        {"kind": "coding_bit", "byte": 5, "bit": 2, "on": 1, "off": 0}
+      "cars": [
+        "Golf 7",
+        "A4 B9",
+        "8V"
       ],
-      "notes": {"ru": "Byte 5 Bit 2 «Traffic Sign Recognition installed» по гайдам MQB/MLB. На 8Y знаки обычно уже включены с завода при наличии камеры.", "en": "Byte 5 Bit 2 per MQB/MLB guides."},
-      "sources": ["https://github.com/LateAlways/mibwiki-mirror (MQB CODING / A5 - Front Assistant Camera Coding)"]
+      "changes": [
+        {
+          "kind": "coding_bit",
+          "byte": 5,
+          "bit": 2,
+          "on": 1,
+          "off": 0
+        }
+      ],
+      "notes": {
+        "ru": "Byte 5 Bit 2 «Traffic Sign Recognition installed» по гайдам MQB/MLB. На 8Y знаки обычно уже включены с завода при наличии камеры.",
+        "en": "Byte 5 Bit 2 per MQB/MLB guides."
+      },
+      "sources": [
+        "https://github.com/LateAlways/mibwiki-mirror (MQB CODING / A5 - Front Assistant Camera Coding)"
+      ]
     },
     {
       "id": "cockpit.lap_timer",
       "category": "cockpit",
-      "title": {"ru": "Секундомер (Lap timer) в Virtual Cockpit", "en": "Lap timer in the Virtual Cockpit"},
+      "title": {
+        "ru": "Секундомер (Lap timer) в Virtual Cockpit",
+        "en": "Lap timer in the Virtual Cockpit"
+      },
       "module": "17",
       "status": "needs-labels",
       "sfd": "yes",
-      "cars": ["Golf 8 (vwcoding.ru, SW 3460–3470)"],
-      "changes": [
-        {"kind": "channel", "channel": "Laptimer", "alt": ["Lap_timer", "Laptimer_active"], "on": "activated", "off": "not activated"}
+      "cars": [
+        "Golf 8 (vwcoding.ru, SW 3460–3470)"
       ],
-      "notes": {"ru": "На MQB-Evo включается адаптацией в 17 (Displayable_content_configuration → Laptimer). Точный DID на вашем блоке нужно выучить: vagon learn start 17 → включить в ODIS/OBDeleven → vagon learn finish 17 --name Laptimer --old \"not activated\" --new activated.", "en": "Adaptation on MQB-Evo; learn the channel first."},
-      "sources": ["https://vwcoding.ru/en/MQB-Evo/AID/"]
+      "changes": [
+        {
+          "kind": "channel",
+          "channel": "Laptimer",
+          "alt": [
+            "Lap_timer",
+            "Laptimer_active"
+          ],
+          "on": "activated",
+          "off": "not activated"
+        }
+      ],
+      "notes": {
+        "ru": "На MQB-Evo включается адаптацией в 17 (Displayable_content_configuration → Laptimer). Точный DID на вашем блоке нужно выучить: vagon learn start 17 → включить в ODIS/OBDeleven → vagon learn finish 17 --name Laptimer --old \"not activated\" --new activated.",
+        "en": "Adaptation on MQB-Evo; learn the channel first."
+      },
+      "sources": [
+        "https://vwcoding.ru/en/MQB-Evo/AID/"
+      ]
     },
     {
       "id": "mmi.wireless_carplay",
       "category": "mmi",
-      "title": {"ru": "Беспроводной Apple CarPlay (MIB3)", "en": "Wireless Apple CarPlay (MIB3)"},
-      "description": {"ru": "Включает Wi-Fi 5 ГГц / клиентский режим и беспроводной CarPlay в блоке 5F.", "en": "Enables 5 GHz Wi-Fi client mode and wireless CarPlay in 5F."},
+      "title": {
+        "ru": "Беспроводной Apple CarPlay (MIB3)",
+        "en": "Wireless Apple CarPlay (MIB3)"
+      },
+      "description": {
+        "ru": "Включает Wi-Fi 5 ГГц / клиентский режим и беспроводной CarPlay в блоке 5F.",
+        "en": "Enables 5 GHz Wi-Fi client mode and wireless CarPlay in 5F."
+      },
       "module": "5F",
       "status": "needs-labels",
       "sfd": "yes",
-      "cars": ["A3 8Y", "Golf 8"],
-      "changes": [
-        {"kind": "channel", "channel": "5_ghz_wlan", "on": "on", "off": "off"},
-        {"kind": "channel", "channel": "Wifi_client_mode_5GHz", "on": "on", "off": "off"},
-        {"kind": "channel", "channel": "WIFI_Hotspot_5GHz", "on": "on", "off": "off", "optional": true},
-        {"kind": "channel", "channel": "WiFi_Client_HMI", "on": "on", "off": "off", "optional": true},
-        {"kind": "channel", "channel": "Apple_DIO", "alt": ["Apple_car_play", "apple_car_play"], "on": "activated", "off": "not activated"},
-        {"kind": "channel", "channel": "Apple_DIO_Wireless", "alt": ["Apple_car_play_wireless"], "on": "activated", "off": "not activated"}
+      "cars": [
+        "A3 8Y",
+        "Golf 8"
       ],
-      "notes": {"ru": "Нужно: MIB3 и уже работающий проводной CarPlay. Перед записью удалите iPhone из CarPlay и Bluetooth в MMI. Блок 5F на 8Y защищён SFD (по данным для Golf 8 с ПО 1803+). Часть блоков с завода/лицензией не даёт включить беспроводной режим. Каналы и их названия различаются по версиям ПО — выучите их на своей машине (по одному: vagon learn) или запишите весь набор, сделанный один раз в ODIS (vagon learn finish 5F --recipe-name ...).", "en": "Needs MIB3 + working wired CarPlay; 5F is SFD-protected on MQB-Evo."},
-      "after": {"ru": "Перезагрузите MMI (удерживать кнопку громкости/питания ~10–15 с) и заново подключите iPhone.", "en": "Reboot the MMI and re-pair the phone."},
-      "sources": ["https://www.vag-coding.net/audi/a3-8y/a3-8y-wireless-carplay-activation/", "https://www.vag-coding.net/vw/golf-8-5h/golf-8-5h-wireless-carplay-activation/", "https://forum.obdeleven.com/thread/17237"]
+      "changes": [
+        {
+          "kind": "channel",
+          "channel": "5_ghz_wlan",
+          "on": "on",
+          "off": "off"
+        },
+        {
+          "kind": "channel",
+          "channel": "Wifi_client_mode_5GHz",
+          "on": "on",
+          "off": "off"
+        },
+        {
+          "kind": "channel",
+          "channel": "WIFI_Hotspot_5GHz",
+          "on": "on",
+          "off": "off",
+          "optional": true
+        },
+        {
+          "kind": "channel",
+          "channel": "WiFi_Client_HMI",
+          "on": "on",
+          "off": "off",
+          "optional": true
+        },
+        {
+          "kind": "channel",
+          "channel": "Apple_DIO",
+          "alt": [
+            "Apple_car_play",
+            "apple_car_play"
+          ],
+          "on": "activated",
+          "off": "not activated"
+        },
+        {
+          "kind": "channel",
+          "channel": "Apple_DIO_Wireless",
+          "alt": [
+            "Apple_car_play_wireless"
+          ],
+          "on": "activated",
+          "off": "not activated"
+        }
+      ],
+      "notes": {
+        "ru": "Нужно: MIB3 и уже работающий проводной CarPlay. Перед записью удалите iPhone из CarPlay и Bluetooth в MMI. Блок 5F на 8Y защищён SFD (по данным для Golf 8 с ПО 1803+). Часть блоков с завода/лицензией не даёт включить беспроводной режим. Каналы и их названия различаются по версиям ПО — выучите их на своей машине (по одному: vagon learn) или запишите весь набор, сделанный один раз в ODIS (vagon learn finish 5F --recipe-name ...).",
+        "en": "Needs MIB3 + working wired CarPlay; 5F is SFD-protected on MQB-Evo."
+      },
+      "after": {
+        "ru": "Перезагрузите MMI (удерживать кнопку громкости/питания ~10–15 с) и заново подключите iPhone.",
+        "en": "Reboot the MMI and re-pair the phone."
+      },
+      "sources": [
+        "https://www.vag-coding.net/audi/a3-8y/a3-8y-wireless-carplay-activation/",
+        "https://www.vag-coding.net/vw/golf-8-5h/golf-8-5h-wireless-carplay-activation/",
+        "https://forum.obdeleven.com/thread/17237"
+      ]
     },
     {
       "id": "mmi.wireless_android_auto",
       "category": "mmi",
-      "title": {"ru": "Беспроводной Android Auto (MIB3)", "en": "Wireless Android Auto (MIB3)"},
+      "title": {
+        "ru": "Беспроводной Android Auto (MIB3)",
+        "en": "Wireless Android Auto (MIB3)"
+      },
       "module": "5F",
       "status": "needs-labels",
       "sfd": "yes",
-      "cars": ["Golf 8", "A5 F5", "Q5 FY"],
-      "changes": [
-        {"kind": "channel", "channel": "5_ghz_wlan", "on": "on", "off": "off"},
-        {"kind": "channel", "channel": "Wifi_client_mode_5GHz", "on": "on", "off": "off"},
-        {"kind": "channel", "channel": "Google_GAL_Wireless", "alt": ["Google_Android_auto_wireless", "google_android_auto_wireless"], "on": "activated", "off": "not activated"}
+      "cars": [
+        "Golf 8",
+        "A5 F5",
+        "Q5 FY"
       ],
-      "notes": {"ru": "Аналогично CarPlay: нужны метки каналов вашего MIB3 и легальная разблокировка SFD.", "en": "Same prerequisites as wireless CarPlay."},
-      "after": {"ru": "Перезагрузите MMI.", "en": "Reboot the MMI."},
-      "sources": ["https://www.vag-coding.net/vw/golf-8-5h/golf-8-5h-wireless-carplay-activation/"]
+      "changes": [
+        {
+          "kind": "channel",
+          "channel": "5_ghz_wlan",
+          "on": "on",
+          "off": "off"
+        },
+        {
+          "kind": "channel",
+          "channel": "Wifi_client_mode_5GHz",
+          "on": "on",
+          "off": "off"
+        },
+        {
+          "kind": "channel",
+          "channel": "Google_GAL_Wireless",
+          "alt": [
+            "Google_Android_auto_wireless",
+            "google_android_auto_wireless"
+          ],
+          "on": "activated",
+          "off": "not activated"
+        }
+      ],
+      "notes": {
+        "ru": "Аналогично CarPlay: нужны метки каналов вашего MIB3 и легальная разблокировка SFD.",
+        "en": "Same prerequisites as wireless CarPlay."
+      },
+      "after": {
+        "ru": "Перезагрузите MMI.",
+        "en": "Reboot the MMI."
+      },
+      "sources": [
+        "https://www.vag-coding.net/vw/golf-8-5h/golf-8-5h-wireless-carplay-activation/"
+      ]
     },
     {
       "id": "mmi.developer_mode",
       "category": "mmi",
-      "title": {"ru": "Инженерное меню MMI (Developer mode)", "en": "MMI developer / engineering menu"},
+      "title": {
+        "ru": "Инженерное меню MMI (Developer mode)",
+        "en": "MMI developer / engineering menu"
+      },
       "module": "5F",
       "status": "needs-labels",
       "sfd": "yes",
       "login": 20103,
       "session": "0x4F",
       "changes": [
-        {"kind": "channel", "channel": "Developer mode", "alt": ["Developer_mode", "Entwicklermodus"], "on": "activated", "off": "not activated"}
+        {
+          "kind": "channel",
+          "channel": "Developer mode",
+          "alt": [
+            "Developer_mode",
+            "Entwicklermodus"
+          ],
+          "on": "activated",
+          "off": "not activated"
+        }
       ],
-      "notes": {"ru": "Требует сессию разработчика 0x4F (в VCDS это «S12345», в OBDeleven «Change Service → Development mode») и логин 20103. Не трогайте функции инженерного меню, в которых не уверены.", "en": "Needs development session 0x4F and login 20103."},
-      "after": {"ru": "Перезагрузите MMI. Вход в меню — комбинацией кнопок для вашего блока.", "en": "Reboot the MMI."},
-      "sources": ["https://github.com/LateAlways/mibwiki-mirror (5F - Enabling Developer Mode and Hidden Menu)"]
+      "notes": {
+        "ru": "Требует сессию разработчика 0x4F (в VCDS это «S12345», в OBDeleven «Change Service → Development mode») и логин 20103. Не трогайте функции инженерного меню, в которых не уверены.",
+        "en": "Needs development session 0x4F and login 20103."
+      },
+      "after": {
+        "ru": "Перезагрузите MMI. Вход в меню — комбинацией кнопок для вашего блока.",
+        "en": "Reboot the MMI."
+      },
+      "sources": [
+        "https://github.com/LateAlways/mibwiki-mirror (5F - Enabling Developer Mode and Hidden Menu)"
+      ]
     },
     {
       "id": "mmi.menu_traffic_signs",
       "category": "mmi",
-      "title": {"ru": "Пункт «Распознавание знаков» в меню автомобиля", "en": "Car menu: traffic sign recognition"},
+      "title": {
+        "ru": "Пункт «Распознавание знаков» в меню автомобиля",
+        "en": "Car menu: traffic sign recognition"
+      },
       "module": "5F",
       "status": "needs-labels",
       "sfd": "yes",
       "changes": [
-        {"kind": "channel", "channel": "menu_display_road_sign_identification", "on": "activated", "off": "not activated"},
-        {"kind": "channel", "channel": "menu_display_road_sign_identification_over_threshold_high", "on": "activated", "off": "not activated", "optional": true},
-        {"kind": "channel", "channel": "traffic_sign_recognition_0x21", "on": "activated", "off": "not activated", "optional": true}
+        {
+          "kind": "channel",
+          "channel": "menu_display_road_sign_identification",
+          "on": "activated",
+          "off": "not activated"
+        },
+        {
+          "kind": "channel",
+          "channel": "menu_display_road_sign_identification_over_threshold_high",
+          "on": "activated",
+          "off": "not activated",
+          "optional": true
+        },
+        {
+          "kind": "channel",
+          "channel": "traffic_sign_recognition_0x21",
+          "on": "activated",
+          "off": "not activated",
+          "optional": true
+        }
       ],
-      "sources": ["https://github.com/LateAlways/mibwiki-mirror (5F - Car Menu Options)"]
+      "sources": [
+        "https://github.com/LateAlways/mibwiki-mirror (5F - Car Menu Options)"
+      ]
     },
     {
       "id": "mmi.menu_start_stop_reasons",
       "category": "mmi",
-      "title": {"ru": "Меню «Почему не работает Start/Stop»", "en": "Car menu: Start/Stop reasons"},
+      "title": {
+        "ru": "Меню «Почему не работает Start/Stop»",
+        "en": "Car menu: Start/Stop reasons"
+      },
       "module": "5F",
       "status": "needs-labels",
       "sfd": "yes",
       "changes": [
-        {"kind": "channel", "channel": "menu_display_Start_Stop_reasons", "on": "activated", "off": "not activated"},
-        {"kind": "channel", "channel": "menu_display_Start_Stop_reasons_over_threshold_high", "on": "activated", "off": "not activated", "optional": true}
+        {
+          "kind": "channel",
+          "channel": "menu_display_Start_Stop_reasons",
+          "on": "activated",
+          "off": "not activated"
+        },
+        {
+          "kind": "channel",
+          "channel": "menu_display_Start_Stop_reasons_over_threshold_high",
+          "on": "activated",
+          "off": "not activated",
+          "optional": true
+        }
       ],
-      "sources": ["https://github.com/LateAlways/mibwiki-mirror (5F - Car Menu Options)"]
+      "sources": [
+        "https://github.com/LateAlways/mibwiki-mirror (5F - Car Menu Options)"
+      ]
     },
     {
       "id": "mmi.menu_driver_alert",
       "category": "mmi",
-      "title": {"ru": "Меню «Контроль усталости водителя»", "en": "Car menu: driver alert"},
+      "title": {
+        "ru": "Меню «Контроль усталости водителя»",
+        "en": "Car menu: driver alert"
+      },
       "module": "5F",
       "status": "needs-labels",
       "sfd": "yes",
       "changes": [
-        {"kind": "channel", "channel": "menu_display_weariness_recognition", "on": "activated", "off": "not activated"}
+        {
+          "kind": "channel",
+          "channel": "menu_display_weariness_recognition",
+          "on": "activated",
+          "off": "not activated"
+        }
       ],
-      "sources": ["https://github.com/LateAlways/mibwiki-mirror (5F - Car Menu Options)"]
+      "sources": [
+        "https://github.com/LateAlways/mibwiki-mirror (5F - Car Menu Options)"
+      ]
     },
     {
       "id": "mmi.menu_consumption",
       "category": "mmi",
-      "title": {"ru": "Меню «Потребители энергии / Эко-советы»", "en": "Car menu: consumers & eco tips"},
+      "title": {
+        "ru": "Меню «Потребители энергии / Эко-советы»",
+        "en": "Car menu: consumers & eco tips"
+      },
       "module": "5F",
       "status": "needs-labels",
       "sfd": "yes",
       "changes": [
-        {"kind": "channel", "channel": "menu_display_BCmE", "on": "activated", "off": "not activated"},
-        {"kind": "channel", "channel": "menu_display_user_eco_rating", "on": "activated", "off": "not activated", "optional": true}
+        {
+          "kind": "channel",
+          "channel": "menu_display_BCmE",
+          "on": "activated",
+          "off": "not activated"
+        },
+        {
+          "kind": "channel",
+          "channel": "menu_display_user_eco_rating",
+          "on": "activated",
+          "off": "not activated",
+          "optional": true
+        }
       ],
-      "sources": ["https://github.com/LateAlways/mibwiki-mirror (5F - Car Menu Options)"]
+      "sources": [
+        "https://github.com/LateAlways/mibwiki-mirror (5F - Car Menu Options)"
+      ]
     },
     {
       "id": "lights.rs3_taillight_animation",
       "category": "lights",
-      "title": {"ru": "Анимация задних фонарей как у RS3 (приветствие/прощание)", "en": "RS3-style taillight animation"},
-      "description": {"ru": "Динамическая анимация задних OLED/LED фонарей при открытии и закрытии.", "en": "Dynamic rear light animation on unlock/lock."},
+      "title": {
+        "ru": "Анимация задних фонарей как у RS3 (приветствие/прощание)",
+        "en": "RS3-style taillight animation"
+      },
+      "description": {
+        "ru": "Динамическая анимация задних OLED/LED фонарей при открытии и закрытии.",
+        "en": "Dynamic rear light animation on unlock/lock."
+      },
       "module": "09",
       "status": "needs-labels",
       "sfd": "yes",
-      "cars": ["A3 8Y"],
-      "changes": [
-        {"kind": "channel", "channel": "Intelligente Heckleuchte-Verbau", "alt": ["Intelligente Heckleuchte Verbau", "Intelligent rear light installation"], "on": 5}
+      "cars": [
+        "A3 8Y"
       ],
-      "notes": {"ru": "Вариант 5 вместо заводского (обычно 1). Работает только если заводской вариант не 0 (у фонарей есть базовая анимация). По отзывам: работает с MMI 34xx, часто НЕ работает с MMI 3606/3617/3620. Отключение — из резервной копии, сделанной при включении.", "en": "Variant 5 instead of stock (usually 1). Reported to work with MMI 34xx, often not with 36xx."},
-      "after": {"ru": "Перезагрузите MMI, закройте и откройте машину.", "en": "Reboot MMI, lock/unlock the car."},
-      "sources": ["https://www.vag-coding.net/audi/a3-8y/a3-8y-activate-taillight-animation-in-rs-mode/", "https://www.audi-sport.net/xf/threads/431857/"]
+      "changes": [
+        {
+          "kind": "channel",
+          "channel": "Intelligente Heckleuchte-Verbau",
+          "alt": [
+            "Intelligente Heckleuchte Verbau",
+            "Intelligent rear light installation"
+          ],
+          "on": 5
+        }
+      ],
+      "notes": {
+        "ru": "Вариант 5 вместо заводского (обычно 1). Работает только если заводской вариант не 0 (у фонарей есть базовая анимация). По отзывам: работает с MMI 34xx, часто НЕ работает с MMI 3606/3617/3620. Отключение — из резервной копии, сделанной при включении.",
+        "en": "Variant 5 instead of stock (usually 1). Reported to work with MMI 34xx, often not with 36xx."
+      },
+      "after": {
+        "ru": "Перезагрузите MMI, закройте и откройте машину.",
+        "en": "Reboot MMI, lock/unlock the car."
+      },
+      "sources": [
+        "https://www.vag-coding.net/audi/a3-8y/a3-8y-activate-taillight-animation-in-rs-mode/",
+        "https://www.audi-sport.net/xf/threads/431857/"
+      ]
     },
     {
       "id": "lights.allow_lights_off",
       "category": "lights",
-      "title": {"ru": "Разрешить полное выключение света переключателем", "en": "Allow switching all lights off"},
+      "title": {
+        "ru": "Разрешить полное выключение света переключателем",
+        "en": "Allow switching all lights off"
+      },
       "module": "09",
       "status": "needs-labels",
       "sfd": "yes",
-      "cars": ["Golf 8", "Leon 4"],
-      "changes": [
-        {"kind": "channel", "channel": "LTM_BGL_Wegabhängig", "on": "not active", "off": "active"},
-        {"kind": "channel", "channel": "LTM_BGL_Geschwindigkeitsabhängig", "on": "not active", "off": "active"},
-        {"kind": "channel", "channel": "LTM_Global_OFF_Wegabhängig", "on": "not active", "off": "active"},
-        {"kind": "channel", "channel": "LTM_Global_OFF_Geschwindigkeitsabhängig", "on": "not active", "off": "active"}
+      "cars": [
+        "Golf 8",
+        "Leon 4"
       ],
-      "notes": {"ru": "Снимает ограничения по пути/скорости для положения «выкл». Соблюдайте ПДД вашей страны (ДХО/ближний днём обязательны в РФ).", "en": "Removes distance/speed restrictions for the OFF position. Mind local traffic law."},
-      "sources": ["https://github.com/LateAlways/mibwiki-mirror (09-Central Electric)"]
+      "changes": [
+        {
+          "kind": "channel",
+          "channel": "LTM_BGL_Wegabhängig",
+          "on": "not active",
+          "off": "active"
+        },
+        {
+          "kind": "channel",
+          "channel": "LTM_BGL_Geschwindigkeitsabhängig",
+          "on": "not active",
+          "off": "active"
+        },
+        {
+          "kind": "channel",
+          "channel": "LTM_Global_OFF_Wegabhängig",
+          "on": "not active",
+          "off": "active"
+        },
+        {
+          "kind": "channel",
+          "channel": "LTM_Global_OFF_Geschwindigkeitsabhängig",
+          "on": "not active",
+          "off": "active"
+        }
+      ],
+      "notes": {
+        "ru": "Снимает ограничения по пути/скорости для положения «выкл». Соблюдайте ПДД вашей страны (ДХО/ближний днём обязательны в РФ).",
+        "en": "Removes distance/speed restrictions for the OFF position. Mind local traffic law."
+      },
+      "sources": [
+        "https://github.com/LateAlways/mibwiki-mirror (09-Central Electric)"
+      ]
     },
     {
       "id": "comfort.start_stop_off",
       "category": "comfort",
-      "title": {"ru": "Start/Stop выключен по умолчанию", "en": "Start/Stop off by default"},
-      "description": {"ru": "Порог напряжения АКБ для Start/Stop 12.1 В вместо 7.6 В — система считает энергопотребление высоким и не глушит двигатель.", "en": "Battery voltage limit 12.1 V instead of 7.6 V."},
+      "title": {
+        "ru": "Start/Stop выключен по умолчанию",
+        "en": "Start/Stop off by default"
+      },
+      "description": {
+        "ru": "Порог напряжения АКБ для Start/Stop 12.1 В вместо 7.6 В — система считает энергопотребление высоким и не глушит двигатель.",
+        "en": "Battery voltage limit 12.1 V instead of 7.6 V."
+      },
       "module": "19",
       "status": "needs-labels",
       "sfd": "yes",
-      "cars": ["MQB", "MQB-Evo"],
-      "changes": [
-        {"kind": "channel", "channel": "Start_stop_voltage_limit", "on": "12.1", "off": "7.6"}
+      "cars": [
+        "MQB",
+        "MQB-Evo"
       ],
-      "notes": {"ru": "В меню Start/Stop будет написано, что система недоступна из-за высокого энергопотребления — это ожидаемо, не ошибка.", "en": "Start/Stop will show 'unavailable: high energy demand' — expected."},
-      "sources": ["https://github.com/LateAlways/mibwiki-mirror (MQB CODING / Start Stop System)"]
+      "changes": [
+        {
+          "kind": "channel",
+          "channel": "Start_stop_voltage_limit",
+          "on": "12.1",
+          "off": "7.6"
+        }
+      ],
+      "notes": {
+        "ru": "В меню Start/Stop будет написано, что система недоступна из-за высокого энергопотребления — это ожидаемо, не ошибка. По отзывам, на части MQB значение принимается, но не влияет на работу Start/Stop, а на шлюзах после 2019 г. (Passat B8 FL) метод перестал работать — проверьте после записи.",
+        "en": "Start/Stop will show 'unavailable: high energy demand' — expected. Reportedly accepted but ineffective on some MQB cars; stopped working on post-2019 gateways (Passat B8 FL)."
+      },
+      "sources": [
+        "https://github.com/LateAlways/mibwiki-mirror (MQB CODING / Start Stop System)",
+        "https://www.vag-coding.net/vw/passat-b8/passat-b8-start-stop-deactivation/",
+        "https://forum.obdeleven.com/thread/6421/disable-engine-stop-start"
+      ]
     }
   ]
 }
